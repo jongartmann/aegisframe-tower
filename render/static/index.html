@@ -330,11 +330,11 @@ body{background:var(--bg);color:var(--tx);font-family:'IBM Plex Sans',sans-serif
 </div>
 
 <!-- CEO EXPLAIN POPUP -->
-<div class="ceo-overlay" id="ceoOverlay" onclick="closeCeoPopup()">
+<div class="ceo-overlay" id="ceoOverlay" onclick="event.stopPropagation();closeCeoPopup()">
   <div class="ceo-popup" onclick="event.stopPropagation()">
     <div class="ceo-popup-hdr">
       <div class="ceo-popup-title" id="ceoTitle">—</div>
-      <button class="ceo-popup-close" onclick="closeCeoPopup()">✕</button>
+      <button class="ceo-popup-close" onclick="event.stopPropagation();closeCeoPopup()">✕</button>
     </div>
     <div class="ceo-popup-body">
       <div class="ceo-popup-icon" id="ceoIcon">🛡</div>
@@ -851,6 +851,7 @@ function showCeoPopup(key){
   const dict = ceoLang==='DE' ? CEO_EXPLAIN_DE : CEO_EXPLAIN_EN;
   const e = dict[key];
   if(!e)return;
+  _ceoCurrentKey=key;
   document.getElementById('ceoTitle').textContent=e.title;
   document.getElementById('ceoIcon').textContent=e.icon;
   document.getElementById('ceoPlain').textContent=e.plain;
@@ -858,16 +859,19 @@ function showCeoPopup(key){
   document.getElementById('ceoRef').textContent=e.ref;
   document.getElementById('ceoOverlay').style.display='block';
 }
-function closeCeoPopup(){document.getElementById('ceoOverlay').style.display='none'}
+let _ceoCurrentKey=null;
+function closeCeoPopup(){document.getElementById('ceoOverlay').style.display='none';_ceoCurrentKey=null;}
 function toggleLang(){
   ceoLang=ceoLang==='DE'?'EN':'DE';
   document.getElementById('langFlag').textContent=ceoLang==='DE'?'🇩🇪':'🇬🇧';
   document.getElementById('langLabel').textContent=ceoLang;
   document.getElementById('langToggle').style.borderColor=ceoLang==='DE'?'rgba(255,255,255,.1)':'rgba(18,180,122,.4)';
+  if(_ceoCurrentKey)showCeoPopup(_ceoCurrentKey);
 }
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCeoPopup()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeCeoPopup();closeExport();}});
 // Auto-wire: any element with data-explain attribute opens popup on click
 document.addEventListener('click',e=>{
+  if(document.getElementById('ceoOverlay').style.display==='block')return;
   const el=e.target.closest('[data-explain]');
   if(el)showCeoPopup(el.getAttribute('data-explain'));
 });
