@@ -537,6 +537,11 @@ body{background:var(--bg);color:var(--tx);font-family:'IBM Plex Sans',sans-serif
   <div style="width:1px;height:20px;background:var(--bd);margin:0 6px"></div>
   <button class="lv-vtab active" onclick="lvSwitchView('monitor',this)" style="padding:4px 12px;font-size:10px;font-weight:600;border:none;background:var(--bg4);color:var(--tx);border-radius:4px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">Monitor</button>
   <button class="lv-vtab" onclick="lvSwitchView('systems',this)" style="padding:4px 12px;font-size:10px;font-weight:600;border:none;background:transparent;color:var(--tx3);border-radius:4px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">Systems</button>
+  <div style="width:1px;height:20px;background:var(--bd);margin:0 6px"></div>
+  <div style="display:flex;border-radius:6px;overflow:hidden;border:1px solid var(--bd)">
+    <button id="lv-modeDemo" onclick="lvSetMode('demo')" style="padding:4px 10px;font-size:9px;font-weight:700;border:none;background:var(--ac3);color:#fff;cursor:pointer;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px">DEMO</button>
+    <button id="lv-modeLive" onclick="lvSetMode('live')" style="padding:4px 10px;font-size:9px;font-weight:700;border:none;background:#fff;color:var(--tx3);cursor:pointer;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px">LIVE</button>
+  </div>
   <div style="flex:1"></div>
   <div style="font-size:10px;color:var(--tx3);font-family:'IBM Plex Mono',monospace" id="lv-meta">tick:0 · chain:0 · bns:0.92</div>
 </div>
@@ -559,6 +564,11 @@ body{background:var(--bg);color:var(--tx);font-family:'IBM Plex Sans',sans-serif
     <div style="text-align:center"><div style="font-size:8px;color:var(--tx3);letter-spacing:1px;margin-bottom:2px">BNS</div><div id="lv-bnsVal" style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#16a34a">0.92</div></div>
   </div>
   <div style="padding:14px 16px;overflow:auto">
+    <!-- MODE BANNER -->
+    <div id="lv-modeBanner" style="padding:8px 12px;border-radius:8px;margin-bottom:10px;font-size:10px;font-weight:600;display:flex;align-items:center;gap:8px;background:rgba(8,145,178,.06);border:1px solid rgba(8,145,178,.2);color:var(--ac3)">
+      <span style="font-size:14px">🎭</span>
+      <span id="lv-modeBannerText">DEMO MODE — Simulated drift scenarios. Use START + Scenario buttons. Switch to LIVE to mirror Control Tower events.</span>
+    </div>
     <div id="lv-recPanel" style="padding:12px;border-radius:10px;border:2px solid #bbf7d0;background:#dcfce7;margin-bottom:10px;transition:all .3s">
       <div id="lv-recAction" style="font-size:12px;font-weight:700;margin-bottom:4px">✅ No action required.</div>
       <div id="lv-recDetail" style="font-size:10px;line-height:1.5;color:var(--tx2)">All systems operating within normal parameters. Continue monitoring.</div>
@@ -1041,6 +1051,101 @@ function mApprove(){}
 function mDeny(){}
 function mResetHalt(){}
 let mRecoveryMode=false,mRecoveryTick=0,mRecoveredBaseline=false;
+
+// ============================================================
+// MODE SWITCHING: DEMO vs LIVE
+// ============================================================
+let lvMode='demo'; // 'demo' or 'live'
+let lvLiveEma=0; // tracks effective risk from Tower events
+
+function lvSetMode(mode){
+  lvMode=mode;
+  const dBtn=document.getElementById('lv-modeDemo');
+  const lBtn=document.getElementById('lv-modeLive');
+  const banner=document.getElementById('lv-modeBanner');
+  const bannerText=document.getElementById('lv-modeBannerText');
+  const toggleBtn=document.getElementById('lv-toggleBtn');
+  
+  if(mode==='demo'){
+    dBtn.style.background='var(--ac3)';dBtn.style.color='#fff';
+    lBtn.style.background='#fff';lBtn.style.color='var(--tx3)';
+    banner.style.background='rgba(8,145,178,.06)';banner.style.borderColor='rgba(8,145,178,.2)';banner.style.color='var(--ac3)';
+    bannerText.textContent='DEMO MODE \u2014 Simulated drift scenarios. Use START + Scenario buttons to simulate.';
+    toggleBtn.style.display='';
+    document.querySelectorAll('.lv-scn').forEach(b=>b.style.display='');
+  } else {
+    // LIVE mode — stop any running demo
+    if(lvRunning){lvToggle()}
+    lBtn.style.background='var(--gn)';lBtn.style.color='#fff';
+    dBtn.style.background='#fff';dBtn.style.color='var(--tx3)';
+    banner.style.background='rgba(22,163,74,.06)';banner.style.borderColor='rgba(22,163,74,.2)';banner.style.color='var(--gn)';
+    bannerText.textContent='LIVE MODE \u2014 Monitoring real Control Tower events. Send prompts in Control Tower tab to see live data.';
+    toggleBtn.style.display='none';
+    document.querySelectorAll('.lv-scn').forEach(b=>b.style.display='none');
+  }
+}
+
+// ============================================================
+// BRIDGE: Tower Events → LV Monitor (LIVE mode)
+// ============================================================
+function lvBridgeTowerEvent(gateState, riskScore, eventType, summary){
+  if(lvMode!=='live') return;
+  
+  // Map Tower gate state to SDI (inverted: NORMAL=high SDI, LOCKDOWN=low SDI)
+  const sdiMap={NORMAL:.87,WARN:.55,DEFEND:.32,LOCKDOWN:.12};
+  const targetSdi=sdiMap[gateState]||.87;
+  
+  // Smooth transition towards target
+  const m=lvMetrics;
+  m.sdi=m.sdi*0.3+targetSdi*0.7; // fast blend
+  m.bns=Math.max(.3,Math.min(.98,m.bns+(Math.random()-.5)*.02));
+  const dv=1-m.sdi;
+  m.intra_state=Math.max(0,Math.min(1,dv*.8+(Math.random()-.5)*.05));
+  m.signal_coupling=Math.max(0,Math.min(1,dv*.7+(Math.random()-.5)*.04));
+  m.output_instability=Math.max(0,Math.min(1,dv*.9+(Math.random()-.5)*.06));
+  m.global_alignment=Math.max(0,Math.min(1,m.sdi*.95+(Math.random()-.5)*.04));
+  m.temporal_deformation=Math.max(0,Math.min(1,dv*.6+(Math.random()-.5)*.03));
+  m.reconfig=Math.max(0,Math.min(1,m.sdi*.8+(Math.random()-.5)*.05));
+  
+  // Add wave data for seismograph
+  const wave=(1-m.sdi)*60+Math.random()*15*(1-m.sdi);
+  lvWaveData.push(wave);lvWaveData.shift();
+  
+  // Log to LV systems
+  lvAddAlert(
+    gateState==='NORMAL'?'GREEN':gateState==='WARN'?'YELLOW':gateState==='DEFEND'?'RED':'BLACK',
+    '\ud83d\udce1 Tower: '+eventType.replace(/_/g,' ')+' \u2014 '+gateState+(riskScore?' (risk: '+riskScore.toFixed(3)+')':''),
+    'TOWER_BRIDGE',
+    riskScore
+  );
+  lvAddLedger('TOWER_'+eventType.toUpperCase(),gateState,'LIVE-BRIDGE',m.sdi);
+  
+  lvTick++;
+  lvUpdateDashboard();
+}
+
+// Decay function for LIVE mode — slowly returns to NORMAL when no events
+let lvLiveDecayInterval=null;
+function lvStartLiveDecay(){
+  if(lvLiveDecayInterval)return;
+  lvLiveDecayInterval=setInterval(()=>{
+    if(lvMode!=='live')return;
+    const m=lvMetrics;
+    // Slowly drift back to stable
+    m.sdi=Math.min(.87,m.sdi+.002);
+    m.bns=Math.min(.92,m.bns+.001);
+    const dv=1-m.sdi;
+    m.intra_state=Math.max(0,dv*.8);m.signal_coupling=Math.max(0,dv*.7);
+    m.output_instability=Math.max(0,dv*.9);m.global_alignment=Math.min(1,m.sdi*.95);
+    m.temporal_deformation=Math.max(0,dv*.6);m.reconfig=Math.min(1,m.sdi*.8);
+    const wave=(1-m.sdi)*60+Math.random()*5;
+    lvWaveData.push(wave);lvWaveData.shift();
+    lvSdiH.push(m.sdi);lvStabH.push(m.global_alignment);lvDriftH.push(m.output_instability);
+    if(lvSdiH.length>60){lvSdiH.shift();lvStabH.shift();lvDriftH.shift()}
+    lvUpdateDashboard();
+  },1000);
+}
+lvStartLiveDecay();
 let towerRecoveryActive=false,towerRecoveryPct=0,towerRecoveryInterval=null,towerPrevState=null;
 function triggerTowerRecovery(fromState){towerPrevState=fromState;towerRecoveryActive=true;towerRecoveryPct=0;const b=document.getElementById('postEventBanner');if(b)b.style.display='block';if(typeof addEvidenceEntry==='function')addEvidenceEntry('post_event_recovery_started','Recovery from '+fromState,fromState,{});const iv=setInterval(()=>{towerRecoveryPct+=2;if(towerRecoveryPct>=100){clearInterval(iv);towerRecoveryActive=false;if(typeof updateGateState==='function')updateGateState('NORMAL',0.02);if(typeof addEvidenceEntry==='function')addEvidenceEntry('post_event_recovery_complete','Recovery complete','NORMAL',{});setTimeout(()=>{const bb=document.getElementById('postEventBanner');if(bb)bb.style.display='none'},5000)}const bar=document.getElementById('postEventBar');if(bar)bar.style.width=towerRecoveryPct+'%';const pct=document.getElementById('postEventPct');if(pct)pct.textContent=towerRecoveryPct+'%';if(towerRecoveryPct===50)addMonitorAlert('GREEN','Recovery 50%');if(towerRecoveryPct===100){const ti=document.getElementById('postEventTitle');if(ti)ti.textContent='RECOVERY COMPLETE';const ic=document.getElementById('postEventIcon');if(ic)ic.textContent='\u2705'}},200)}
 function dismissPostEvent(){const b=document.getElementById('postEventBanner');if(b)b.style.display='none';towerRecoveryActive=false}
@@ -2383,6 +2488,8 @@ function scorePrompt(text){
 // ============================================================
 function updateGateState(state,risk){
   currentGateState=state;
+  // BRIDGE: Feed to LV Monitor in LIVE mode
+  if(typeof lvBridgeTowerEvent==='function'){lvBridgeTowerEvent(state,risk,'gate_state_changed','Gate → '+state)}
   const badge=document.getElementById('gateBadge');
   badge.className='gate-state-badge gate-'+state;
   badge.textContent=state;
@@ -2765,6 +2872,8 @@ function renderRemediation(state,contributors){
 // ============================================================
 async function addEvidenceEntry(type,summary,gateState,data){
   sequenceNo++;
+  // BRIDGE: Feed to LV Monitor in LIVE mode
+  if(typeof lvBridgeTowerEvent==='function'&&type!=='system_init'){lvBridgeTowerEvent(gateState,data?.risk_ema||0,type,summary)}
   const ts=new Date().toISOString();
   const eventId='evt_'+String(sequenceNo).padStart(6,'0');
   
