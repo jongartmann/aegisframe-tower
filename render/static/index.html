@@ -3758,7 +3758,13 @@ const INVOCATION_COUNTER_PROPERTIES = {
   monotonic: true,
   rollback_allowed: false,
   reset_requires_signed_event: true,
-  reset_event_hash_linked: true
+  reset_event_hash_linked: true,
+  definitions: {
+    executed: 'provider_acknowledged_inference == true OR tokens_received > 0',
+    attempted: 'dispatch_to_provider_initiated == true (socket opened, request sent)',
+    failed: 'attempted == true AND executed == false (provider unreachable, CORS, timeout, error)',
+    blocked_pre_semantic: 'governance gate denied before any dispatch attempt'
+  }
 };
 
 // ============================================================
@@ -3935,7 +3941,7 @@ async function computeExternalAnchor(){
   return await buildExternalTimeAnchor();
 }
 
-function buildGovernanceTrail(){
+async function buildGovernanceTrail(){
   const invTrail = ModelAdapter.getTrail();
   return {
     trail_id: 'TRAIL_A_GOVERNANCE',
@@ -3950,7 +3956,7 @@ function buildGovernanceTrail(){
       spec_hash:policySpecHash,canonicalization:'RFC8785'
     },
     hash_of_trail_b_genesis: invTrail[0]?.adapter_signature?.payload_hash || '0'.repeat(64),
-    hash_of_trail_b_latest: invTrail.length ? (invTrail[invTrail.length-1]?.adapter_signature?.payload_hash || '0'.repeat(64)) : '0'.repeat(64),
+    hash_of_trail_b_latest: await ModelAdapter.getTrailHash(),
     events: evidenceLog.map(e=>({
       event_id:e.event_id,timestamp:e.timestamp,type:e.type,gate_state:e.gate_state,
       hash:e.hash,chain_hash:e.chain_hash,prev_hash:e.prev_hash,data:e.data
@@ -4083,7 +4089,7 @@ async function exportAudit(mode){
   const crossAnchors = await buildCrossTrailAnchors();
   const rtAttest = buildRuntimeAttestation();
   const invTrail = await buildInvocationTrail();
-  const govTrail = buildGovernanceTrail();
+  const govTrail = await buildGovernanceTrail();
   const counters = ModelAdapter.getCounterSnapshot();
   const blocked = counters.blocked_pre_semantic>0;
   const preEnf = buildPreSemanticEnforcement(blocked, 0, counters.total_requests);
@@ -4194,7 +4200,7 @@ async function exportAudit(mode){
     invariants:[
       'total_requests == blocked_pre_semantic + attempted',
       'attempted == executed + failed',
-      'executed implies model_response_received_from_provider == true OR tokens_generated > 0',
+      'executed := provider_acknowledged_inference == true OR tokens_received > 0',
       'No model forward without governance decision hash link',
       'Invocation counter monotonic; resets require signed reset event',
       'Governance cannot increment invocation counter',
