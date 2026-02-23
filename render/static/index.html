@@ -1029,8 +1029,8 @@ function updateMonitorTab(){
   }
 
   // Countdown for non-NORMAL in monitor
-  if(gs!=='NORMAL'&&!mCdActive)startMonitorCountdown();
-  if(gs==='NORMAL'&&mCdActive)stopMonitorCountdown();
+  if(gs!=='NORMAL'&&gs!=='RECOVERING'&&!mCdActive)startMonitorCountdown();
+  if((gs==='NORMAL'||gs==='RECOVERING')&&mCdActive)stopMonitorCountdown();
 }
 
 let monitorAlerts=[];
@@ -1187,7 +1187,8 @@ function triggerTowerRecovery(fromState){
       // Reset gate to NORMAL
       updateGateState('NORMAL',0.02);
       currentGateState='NORMAL';
-      // Also reset monitor
+      // Also reset monitor — stop countdown, enter recovery mode
+      if(typeof stopMonitorCountdown==='function'&&mCdActive)stopMonitorCountdown();
       mRecoveryMode=true;mRecoveryTick=60;mRecoveredBaseline=false;
       // Evidence
       if(typeof addEvidenceEntry==='function'){
@@ -1225,7 +1226,7 @@ function dismissPostEvent(){
 
 // Monitor drawings
 function drawMonitorSeismo(color){
-  const canvas=document.getElementById('m-seismo');if(!canvas)return;const ctx=canvas.getContext('2d');
+  const canvas=document.getElementById('m-seismo');if(!canvas)return;const ctx=canvas.getContext('2d');if(!ctx)return;
   const w=canvas.width=canvas.offsetWidth*2,h=canvas.height=canvas.offsetHeight*2;ctx.scale(2,2);
   const dw=canvas.offsetWidth,dh=canvas.offsetHeight;
   ctx.fillStyle='#fff';ctx.fillRect(0,0,dw,dh);
@@ -1242,7 +1243,7 @@ function drawMonitorSeismo(color){
   ctx.beginPath();ctx.arc(lx,ly,3,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
 }
 function drawMonitorEkg(gs){
-  const canvas=document.getElementById('m-ekgCanvas');if(!canvas)return;const ctx=canvas.getContext('2d');
+  const canvas=document.getElementById('m-ekgCanvas');if(!canvas)return;const ctx=canvas.getContext('2d');if(!ctx)return;
   const w=canvas.width=canvas.offsetWidth*2,h=canvas.height=canvas.offsetHeight*2;ctx.scale(2,2);
   const dw=canvas.offsetWidth,dh=canvas.offsetHeight;ctx.clearRect(0,0,dw,dh);
   const step=dw/(mEkgData.length-1),cy=dh/2;
@@ -1251,7 +1252,7 @@ function drawMonitorEkg(gs){
   ctx.beginPath();mEkgData.forEach((v,i)=>{const x=i*step,y=cy-v*(dh/50);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});ctx.stroke();ctx.shadowBlur=0;
 }
 function mDrawSparkline(id,data,color){
-  const c=document.getElementById(id);if(!c)return;const ctx=c.getContext('2d');
+  const c=document.getElementById(id);if(!c)return;const ctx=c.getContext('2d');if(!ctx)return;
   const w=c.width=c.offsetWidth*2,h=c.height=c.offsetHeight*2;ctx.scale(2,2);
   const dw=c.offsetWidth,dh=c.offsetHeight;ctx.clearRect(0,0,dw,dh);
   if(data.length<2)return;
@@ -1275,7 +1276,7 @@ async function monitorVerify(){
 
 // Auto-update monitor when tower processes a prompt
 const _origHandleSend = typeof handleSend==='function'?handleSend:null;
-setInterval(()=>{updateMonitorTab()},500);
+setInterval(()=>{try{updateMonitorTab()}catch(e){}},500);
 </script>
 
 <script>
