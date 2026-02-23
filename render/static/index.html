@@ -671,6 +671,12 @@ body{background:var(--bg);color:var(--tx);font-family:'IBM Plex Sans',sans-serif
 // TAB SWITCHING
 // ============================================================
 function switchTab(tab, el){
+  document.getElementById('tab-tower').style.display = tab==='tower'?'block':'none';
+  document.getElementById('tab-monitor').style.display = tab==='monitor'?'block':'none';
+  document.querySelectorAll('.aegis-tab').forEach(t=>{t.style.color='var(--tx3)';t.style.borderBottom='3px solid transparent'});
+  el.style.color='var(--ac3)';el.style.borderBottom='3px solid var(--ac3)';
+  if(tab==='monitor') updateMonitorTab();
+}
 
 // ============================================================
 // CEO EXPLAIN POPUP — Plain language for every metric
@@ -892,12 +898,7 @@ document.addEventListener('click',e=>{
   const el=e.target.closest('[data-explain]');
   if(el)showCeoPopup(el.getAttribute('data-explain'));
 });
-  document.getElementById('tab-tower').style.display = tab==='tower'?'block':'none';
-  document.getElementById('tab-monitor').style.display = tab==='monitor'?'block':'none';
-  document.querySelectorAll('.aegis-tab').forEach(t=>{t.style.color='var(--tx3)';t.style.borderBottom='3px solid transparent'});
-  el.style.color='var(--ac3)';el.style.borderBottom='3px solid var(--ac3)';
-  if(tab==='monitor') updateMonitorTab();
-}
+
 // ============================================================
 // MONITOR TAB — LIVE FEED FROM TOWER ENGINE
 // ============================================================
@@ -1274,7 +1275,7 @@ async function monitorVerify(){
 
 // Auto-update monitor when tower processes a prompt
 const _origHandleSend = typeof handleSend==='function'?handleSend:null;
-setInterval(()=>{if(document.getElementById('tab-monitor').style.display!=='none')updateMonitorTab()},500);
+setInterval(()=>{updateMonitorTab()},500);
 </script>
 
 <script>
@@ -1359,6 +1360,8 @@ let sequenceNo = 0;
 let prevHash = '0000000000000000000000000000000000000000000000000000000000000000';
 let currentGateState = 'NORMAL';
 let latestRisk = null;
+let securityGateEma = 0;
+let domainGateEma = 0;
 let sessionRiskScores = [];
 let oversightState = 'NONE';
 let oversightTimer = null;
@@ -1763,9 +1766,12 @@ async function verifyCounterInvariant(beforeSnap, afterSnap, wasForward){
     total_before: beforeSnap.total,
     total_after: afterSnap.total,
     delta_total: deltaTot,
+    delta_attempted: deltaAttempted,
     delta_executed: deltaExec,
     delta_blocked: deltaBlocked,
-    sum_check: afterSnap.total === (afterSnap.blocked_pre_semantic + afterSnap.executed),
+    delta_failed: deltaFailed,
+    sum_check_primary: afterSnap.total_requests === (afterSnap.blocked_pre_semantic + afterSnap.attempted),
+    sum_check_secondary: afterSnap.attempted === (afterSnap.executed + afterSnap.failed),
     counter_hash_before: beforeHash,
     counter_hash_after: afterHash,
     counter_verified: verified,
@@ -3490,6 +3496,10 @@ async function handleSend(){
   const risk=scorePrompt(input);
   latestRisk=risk;
   
+  // ── TOWER→MONITOR BRIDGE: propagate risk to monitor ──
+  securityGateEma=risk.raw||0;
+  domainGateEma=risk.domainRaw||0;
+  
   // 3. Animate gate
   animateGate(async()=>{
     // 4. Log risk score
@@ -3509,6 +3519,12 @@ async function handleSend(){
       const oldState=currentGateState;
       updateGateState(risk.state,risk.ema);
       await addEvidenceEntry('gate_state_changed',`${oldState} → ${risk.state}`,risk.state,{from:oldState,to:risk.state,risk_ema:risk.ema});
+      // ── TOWER→MONITOR: alert on state transitions ──
+      const alertLevel=risk.state==='LOCKDOWN'?'RED':risk.state==='DEFEND'?'ORANGE':risk.state==='WARN'?'YELLOW':'GREEN';
+      addMonitorAlert(alertLevel,`⚡ Gate state changed: ${oldState} → ${risk.state} (EMA: ${risk.ema.toFixed(3)})`);
+      if(risk.state==='LOCKDOWN')addMonitorAlert('RED','🚨 LOCKDOWN — All AI operations suspended. Human oversight required.');
+      if(risk.state==='DEFEND')addMonitorAlert('ORANGE','⚠️ DEFEND — AI output restricted. Domain authority gate active.');
+      if(risk.state==='WARN')addMonitorAlert('YELLOW','⚠ WARN — Elevated risk detected. Monitoring enhanced.');
       // If dropping back to NORMAL from elevated, trigger recovery
       if(risk.state==='NORMAL'&&oldState!=='NORMAL'){
         triggerTowerRecovery(oldState);
@@ -3657,8 +3673,9 @@ async function handleSend(){
       const preModelEvents=evidenceLog.filter(e=>e.type==='pre_model_gate_triggered'||e.type==='model_dispatch_blocked').slice(-2);
       renderPreSemanticProof(input, risk, GovernanceEngine.getState(), ModelAdapter.getState(), preModelEvents, counterVerification);
       
-      resp.innerHTML='<span style="color:var(--rd)">\u26D4 REQUEST DENIED \u2014 PRE-MODEL ENFORCEMENT</span>\n\nAegisFrame blocked this request at the pre-semantic gate. Risk score '+risk.ema.toFixed(3)+' with gate state: '+risk.state+'.\n\n<strong>No data was sent to the AI model.</strong>\nModel adapter state: DISABLED\nInference engine: not invoked\nGPU time: 0 ms · Tokens generated: 0\n\nThe decision hash and evidence chain prove this block occurred before any model invocation.';
+      resp.innerHTML='<span style="color:var(--rd)">\u26D4 REQUEST DENIED \u2014 PRE-MODEL ENFORCEMENT</span>\n\nAegisFrame blocked this request at the pre-semantic gate. Risk score '+risk.ema.toFixed(3)+' with gate state: '+risk.state+'.\n\n<strong>No data was sent to the AI model.</strong>\nModel adapter state: DISABLED\nInference engine: not invoked\nGPU time: 0 ms · Tokens generated: 0\n\nThe decision hash and evidence chain prove this block occurred before any model invocation.\n\n<span style="color:var(--am);font-size:11px">\u2139\uFE0F <strong>Art. 14 Notice:</strong> This is an automated safety hold, not a final decision. A human operator can override via Oversight Token at any time. The system blocks pending review \u2014 it does not autonomously suppress.</span>';
       await addEvidenceEntry('gate_denied','Request denied at pre-model gate.',risk.state,{risk_ema:risk.ema,execution_path:'PRE_MODEL_GATE'});
+      addMonitorAlert('RED','⛔ Pre-semantic BLOCK — Request denied. No data sent to AI model. Risk: '+risk.ema.toFixed(3));
       // PHDM: sample post-hoc (blocked)
       await PHDM.sample(risk.state, true, false, false);
       updateVitalsUI();
@@ -3674,6 +3691,7 @@ async function handleSend(){
     // ModelAdapter.canInvoke() is true only when GovernanceEngine set enabled=true
     try{
       resp.innerHTML='<span style="color:var(--ac)">\uD83D\uDD04 Model adapter enabled \u2014 forwarding to AI model...</span><div class="cursor-blink" style="margin-left:4px;display:inline-block"></div>';
+      addMonitorAlert('GREEN','✅ Gate ALLOW — Model dispatch attempted. Risk: '+risk.ema.toFixed(3));
       
       const systemPrompt=`You are a helpful AI assistant. Your responses are being monitored by AegisFrame, a pre-semantic governance layer. Current gate state: ${risk.state}. Max response tokens: ${mits.context_tokens}. Answer concisely and helpfully.`;
       
@@ -3785,7 +3803,8 @@ function buildPreSemanticEnforcement(blocked, counterBefore, counterAfter){
       invocation_counter_after:counterAfter||ModelAdapter._invocation_counter.total_requests,
       invocation_total_delta:1,
       invocation_blocked_delta:1,
-      invocation_forward_delta:0,
+      dispatch_attempt_delta:0,
+      model_execution_delta:0,
       adapter_signature_verified:true
     };
   }
@@ -3800,7 +3819,8 @@ function buildPreSemanticEnforcement(blocked, counterBefore, counterAfter){
     invocation_counter_after:counterAfter||ModelAdapter._invocation_counter.total_requests,
     invocation_total_delta:1,
     invocation_blocked_delta:0,
-    invocation_forward_delta:1
+    dispatch_attempt_delta:1,
+    model_execution_delta:0
   };
 }
 
@@ -4171,7 +4191,9 @@ async function exportAudit(mode){
       policy_registry_version:POLICY_REGISTRY.version,spec_hash:policySpecHash
     })),
     invariants:[
-      'total == blocked_pre_semantic + executed',
+      'total_requests == blocked_pre_semantic + attempted',
+      'attempted == executed + failed',
+      'executed implies model_response_received_from_provider == true OR tokens_generated > 0',
       'No model forward without governance decision hash link',
       'Invocation counter monotonic; resets require signed reset event',
       'Governance cannot increment invocation counter',
