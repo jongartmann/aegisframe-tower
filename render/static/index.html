@@ -944,6 +944,13 @@ function updateMonitorTab(){
   const sec = typeof securityGateEma!=='undefined'?securityGateEma:0;
   const dom = typeof domainGateEma!=='undefined'?domainGateEma:0;
   let gs = typeof currentGateState!=='undefined'?currentGateState:'NORMAL';
+  // If tower reports critical state, break out of recovery/baseline hold
+  if((gs==='DEFEND'||gs==='LOCKDOWN'||gs==='WARN')&&(mRecoveredBaseline||mRecoveryMode)){
+    mRecoveredBaseline=false;
+    mRecoveryMode=false;
+    effOverride=null;
+    eff=gs==='LOCKDOWN'?.75:gs==='DEFEND'?.55:.25;
+  }
   if(mRecoveryMode||mRecoveredBaseline)gs=eff<.15?'NORMAL':eff<.45?'RECOVERING':'DEFEND';
   const evtCount = typeof evidenceLog!=='undefined'?evidenceLog.length:0;
 
