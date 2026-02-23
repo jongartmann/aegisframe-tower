@@ -355,6 +355,23 @@ body{background:var(--bg);color:var(--tx);font-family:'IBM Plex Sans',sans-serif
 
 <!-- ═══════ TAB 1: CONTROL TOWER (existing) ═══════ -->
 <div id="tab-tower">
+<!-- POST-EVENT RECOVERY BANNER -->
+<div id="postEventBanner" style="display:none;margin:0 24px 12px;padding:12px 18px;border-radius:10px;border:1px solid #bbf7d0;background:linear-gradient(135deg,#f0fdf4,#dcfce7);animation:fadeIn .3s ease">
+  <div style="display:flex;align-items:center;justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px" id="postEventIcon">✅</span>
+      <div>
+        <div id="postEventTitle" style="font-size:12px;font-weight:700;color:#15803d;font-family:'IBM Plex Sans',sans-serif">POST-EVENT RECOVERY</div>
+        <div id="postEventMsg" style="font-size:11px;color:#166534;margin-top:2px">System recovering to baseline after governance event.</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div id="postEventProgress" style="width:120px;height:6px;background:#bbf7d0;border-radius:3px;overflow:hidden"><div id="postEventBar" style="width:0%;height:100%;background:#16a34a;border-radius:3px;transition:width .5s ease"></div></div>
+      <span id="postEventPct" style="font-size:10px;font-weight:700;color:#16a34a;font-family:'IBM Plex Mono',monospace">0%</span>
+      <button onclick="dismissPostEvent()" style="background:none;border:none;color:#86efac;cursor:pointer;font-size:14px;padding:0 4px">✕</button>
+    </div>
+  </div>
+</div>
 
 <!-- STATUS BAR -->
 <div class="status-bar" id="statusBar"></div>
@@ -1133,6 +1150,77 @@ function mResetHalt(){
 
 let mRecoveryMode=false, mRecoveryTick=0;
 let mRecoveredBaseline=false;
+
+// ── TOWER POST-EVENT RECOVERY ──
+let towerRecoveryActive=false, towerRecoveryPct=0, towerRecoveryInterval=null;
+let towerPrevState=null; // track what state we're recovering FROM
+
+function triggerTowerRecovery(fromState){
+  towerPrevState=fromState;
+  towerRecoveryActive=true;
+  towerRecoveryPct=0;
+  const banner=document.getElementById('postEventBanner');
+  banner.style.display='block';
+  document.getElementById('postEventTitle').textContent='POST-EVENT RECOVERY — '+fromState+' → NORMAL';
+  document.getElementById('postEventMsg').textContent='Gate decision: ALLOW. System recovering to baseline. All metrics normalizing.';
+  document.getElementById('postEventIcon').textContent='🔄';
+  document.getElementById('postEventBar').style.width='0%';
+  document.getElementById('postEventPct').textContent='0%';
+  
+  // Add evidence entry
+  if(typeof addEvidenceEntry==='function'){
+    addEvidenceEntry('post_event_recovery_started','Post-event recovery initiated. Previous state: '+fromState+'. Target: NORMAL.',fromState,{from_state:fromState,recovery_target:'NORMAL'});
+  }
+  
+  if(towerRecoveryInterval)clearInterval(towerRecoveryInterval);
+  towerRecoveryInterval=setInterval(()=>{
+    towerRecoveryPct+=2;
+    if(towerRecoveryPct>=100){
+      towerRecoveryPct=100;
+      clearInterval(towerRecoveryInterval);
+      towerRecoveryInterval=null;
+      towerRecoveryActive=false;
+      document.getElementById('postEventIcon').textContent='✅';
+      document.getElementById('postEventTitle').textContent='RECOVERY COMPLETE';
+      document.getElementById('postEventMsg').textContent='System fully recovered. All metrics at baseline. Normal operations resumed.';
+      // Reset gate to NORMAL
+      updateGateState('NORMAL',0.02);
+      currentGateState='NORMAL';
+      // Also reset monitor
+      mRecoveryMode=true;mRecoveryTick=60;mRecoveredBaseline=false;
+      // Evidence
+      if(typeof addEvidenceEntry==='function'){
+        addEvidenceEntry('post_event_recovery_complete','Recovery complete. Gate: NORMAL. Risk baseline restored.','NORMAL',{final_state:'NORMAL',risk_ema:0.02});
+      }
+      // Auto-dismiss after 5s
+      setTimeout(()=>{
+        const b=document.getElementById('postEventBanner');
+        if(b)b.style.display='none';
+      },5000);
+    }
+    document.getElementById('postEventBar').style.width=towerRecoveryPct+'%';
+    document.getElementById('postEventPct').textContent=towerRecoveryPct+'%';
+    // Progressive messages
+    if(towerRecoveryPct===25){
+      document.getElementById('postEventMsg').textContent='📈 Recovery 25% — Risk metrics decreasing.';
+      addMonitorAlert('GREEN','📈 Tower recovery 25% — Drift metrics decreasing.');
+    }
+    if(towerRecoveryPct===50){
+      document.getElementById('postEventMsg').textContent='📈 Recovery 50% — Security EMA approaching baseline.';
+      addMonitorAlert('GREEN','📈 Tower recovery 50% — Security EMA approaching baseline.');
+    }
+    if(towerRecoveryPct===75){
+      document.getElementById('postEventMsg').textContent='📈 Recovery 75% — Domain signals normalized.';
+      addMonitorAlert('GREEN','📈 Tower recovery 75% — Domain signals normalized.');
+    }
+  },200); // ~10 seconds total recovery
+}
+
+function dismissPostEvent(){
+  document.getElementById('postEventBanner').style.display='none';
+  if(towerRecoveryInterval){clearInterval(towerRecoveryInterval);towerRecoveryInterval=null;}
+  towerRecoveryActive=false;
+}
 
 // Monitor drawings
 function drawMonitorSeismo(color){
@@ -3390,6 +3478,10 @@ async function handleSend(){
       const oldState=currentGateState;
       updateGateState(risk.state,risk.ema);
       await addEvidenceEntry('gate_state_changed',`${oldState} → ${risk.state}`,risk.state,{from:oldState,to:risk.state,risk_ema:risk.ema});
+      // If dropping back to NORMAL from elevated, trigger recovery
+      if(risk.state==='NORMAL'&&oldState!=='NORMAL'){
+        triggerTowerRecovery(oldState);
+      }
     } else {
       updateGateState(risk.state,risk.ema);
     }
@@ -3572,6 +3664,11 @@ async function handleSend(){
       // Render proof for allowed case too
       const fwdEvents=evidenceLog.filter(e=>e.type==='pre_model_gate_triggered'||e.type==='ai_response_received').slice(-2);
       renderPreSemanticProof(input, risk, GovernanceEngine.getState(), ModelAdapter.getState(), fwdEvents, null);
+      
+      // ── POST-EVENT RECOVERY: if state was elevated, trigger recovery to green ──
+      if(risk.state!=='NORMAL'){
+        triggerTowerRecovery(risk.state);
+      }
       
     }catch(err){
       resp.innerHTML=`<span style="color:var(--am)">\u26A0\uFE0F Error: ${err.message}</span>`;
