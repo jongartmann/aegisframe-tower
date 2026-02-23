@@ -1478,12 +1478,14 @@ const ModelAdapter = {
   _invocation_trail: [],
   
   // ── MONOTONIC INVOCATION COUNTER ──
-  // INVARIANT: total == blocked_pre_semantic + executed
-  // total == number of events in Trail B (excluding init)
+  // INVARIANT: total_requests == blocked_pre_semantic + attempted
+  //            attempted == executed + failed
   _invocation_counter: {
-    total: 0,
+    total_requests: 0,
     blocked_pre_semantic: 0,
-    executed: 0
+    attempted: 0,
+    executed: 0,
+    failed: 0
   },
   
   async initKeys(){
@@ -1520,27 +1522,28 @@ const ModelAdapter = {
   
   getCounterSnapshot(){
     return {
-      total: this._invocation_counter.total,
+      total_requests: this._invocation_counter.total_requests,
       blocked_pre_semantic: this._invocation_counter.blocked_pre_semantic,
+      attempted: this._invocation_counter.attempted,
       executed: this._invocation_counter.executed,
-      invariant_holds: this._invocation_counter.total === 
-        (this._invocation_counter.blocked_pre_semantic + this._invocation_counter.executed),
-      counter_source: 'MODEL_ADAPTER_PROCESS_ONLY'
+      failed: this._invocation_counter.failed,
+      invariant_holds: this._invocation_counter.total_requests === 
+        (this._invocation_counter.blocked_pre_semantic + this._invocation_counter.attempted)
+        && this._invocation_counter.attempted === (this._invocation_counter.executed + this._invocation_counter.failed),
+      counter_source: 'MODEL_ADAPTER_PROCESS_ONLY',
+      monotonic: true
     };
   },
   
   async notifyBlocked(){
-    const before = this._invocation_counter.total;
-    this._invocation_counter.total++;
+    const before = this._invocation_counter.total_requests;
+    this._invocation_counter.total_requests++;
     this._invocation_counter.blocked_pre_semantic++;
     
     // ── NO_INVOCATION_PROOF ──
-    // Cryptographically signed attestation that no model forward occurred.
-    // The adapter signs: "I attest that for this request, no data was sent
-    // to any model endpoint, no GPU was used, no inference was performed."
     const noInvocationPayload = {
       proof_type: 'NO_INVOCATION_PROOF',
-      request_counter: this._invocation_counter.total,
+      request_counter: this._invocation_counter.total_requests,
       model_forward_executed: false,
       dispatch_attempted: false,
       outbound_bytes: 0,
@@ -1558,9 +1561,10 @@ const ModelAdapter = {
     await this.emitTrailEvent('model_forward_blocked',{
       reason:'blocked_pre_semantic',
       counter_before:before,
-      counter_after:this._invocation_counter.total,
+      counter_after:this._invocation_counter.total_requests,
       delta_total:1,
       delta_blocked:1,
+      delta_attempted:0,
       delta_executed:0,
       model_forward_executed:false,
       outbound_bytes:0,
@@ -1569,7 +1573,6 @@ const ModelAdapter = {
       inference_engine_initialized:false,
       model_process_spawned:false,
       network_socket_opened:false,
-      // SIGNED NO_INVOCATION_PROOF — verifiable by external auditor
       no_invocation_proof: noInvocationProof
     });
   },
@@ -1583,8 +1586,9 @@ const ModelAdapter = {
       return {success:false,reason:'Model adapter not enabled.',state:this.state};
     }
     
-    const counterBefore = this._invocation_counter.total;
-    this._invocation_counter.total++;
+    const counterBefore = this._invocation_counter.total_requests;
+    this._invocation_counter.total_requests++;
+    this._invocation_counter.attempted++;
     
     this.dispatch_attempted = true;
     this.model_binary_loaded = true;
@@ -1611,10 +1615,12 @@ const ModelAdapter = {
       await this.emitTrailEvent('model_forward_executed',{
         reason:'executed',
         counter_before:counterBefore,
-        counter_after:this._invocation_counter.total,
+        counter_after:this._invocation_counter.total_requests,
         delta_total:1,
         delta_blocked:0,
+        delta_attempted:1,
         delta_executed:1,
+        delta_failed:0,
         model_forward_executed:true,
         tokens_generated:this.tokens_generated,
         gpu_time_ms:this.gpu_time_ms,
@@ -1628,14 +1634,18 @@ const ModelAdapter = {
       this.transport_socket_opened = true;
       this.outbound_network_call = true;
       this.tokens_generated = 0;
-      await this.emitTrailEvent('model_forward_executed',{
+      this._invocation_counter.failed++;
+      await this.emitTrailEvent('model_forward_attempted',{
         reason:'attempted_failed',
         counter_before:counterBefore,
-        counter_after:this._invocation_counter.total,
+        counter_after:this._invocation_counter.total_requests,
         delta_total:1,
         delta_blocked:0,
+        delta_attempted:1,
         delta_executed:0,
+        delta_failed:1,
         model_forward_executed:false,
+        dispatch_attempted:true,
         error:err.message
       });
       return {success:false,reason:err.message,demo_mode:true};
@@ -1695,45 +1705,56 @@ async function captureCounterProof(wasBlocked){
 }
 
 async function verifyCounterInvariant(beforeSnap, afterSnap, wasForward){
-  const deltaTot = afterSnap.total - beforeSnap.total;
-  const deltaExec = afterSnap.executed - beforeSnap.executed;
+  const deltaTot = afterSnap.total_requests - beforeSnap.total_requests;
+  const deltaAttempted = afterSnap.attempted - beforeSnap.attempted;
   const deltaBlocked = afterSnap.blocked_pre_semantic - beforeSnap.blocked_pre_semantic;
+  const deltaExec = afterSnap.executed - beforeSnap.executed;
+  const deltaFailed = afterSnap.failed - beforeSnap.failed;
   
   let verified = true;
   let violation = null;
   
-  // INVARIANT 1: total must increase by exactly 1 per request
+  // INVARIANT 1: total_requests must increase by exactly 1 per request
   if(deltaTot !== 1){
     verified = false;
     violation = 'TOTAL_DELTA_NOT_1: got '+deltaTot;
   }
-  // INVARIANT 2: exactly one of blocked/executed must increase by 1
-  if(wasForward && deltaExec !== 1){
+  // INVARIANT 2: for forward path, attempted must increase by 1
+  if(wasForward && deltaAttempted !== 1){
     verified = false;
-    violation = 'FORWARD_WITHOUT_EXEC_INCREMENT';
+    violation = 'FORWARD_WITHOUT_ATTEMPTED_INCREMENT';
   }
+  // INVARIANT 3: for blocked path, blocked must increase by 1
   if(!wasForward && deltaBlocked !== 1){
     verified = false;
     violation = 'BLOCK_WITHOUT_BLOCKED_INCREMENT';
   }
-  // INVARIANT 3: total == blocked + executed (HARD ASSERT)
-  if(afterSnap.total !== (afterSnap.blocked_pre_semantic + afterSnap.executed)){
+  // INVARIANT 4: total_requests == blocked + attempted (HARD ASSERT)
+  if(afterSnap.total_requests !== (afterSnap.blocked_pre_semantic + afterSnap.attempted)){
     verified = false;
-    violation = 'COUNTER_SUM_MISMATCH: '+afterSnap.total+' != '+afterSnap.blocked_pre_semantic+'+'+afterSnap.executed;
+    violation = 'COUNTER_SUM_MISMATCH: total_requests='+afterSnap.total_requests+' != blocked='+afterSnap.blocked_pre_semantic+' + attempted='+afterSnap.attempted;
+  }
+  // INVARIANT 5: attempted == executed + failed
+  if(afterSnap.attempted !== (afterSnap.executed + afterSnap.failed)){
+    verified = false;
+    violation = 'ATTEMPTED_SUM_MISMATCH: attempted='+afterSnap.attempted+' != executed='+afterSnap.executed+' + failed='+afterSnap.failed;
   }
   
   const beforeHash = await sha256(JSON.stringify(beforeSnap));
   const afterHash = await sha256(JSON.stringify(afterSnap));
   
-  // SIGNED invariant attestation — adapter cryptographically asserts invariant state
+  // SIGNED invariant attestation
   const attestationPayload = {
     invariant_type: 'COUNTER_INVARIANT_CHECK',
     verified: verified,
     violation: violation,
-    total: afterSnap.total,
+    total_requests: afterSnap.total_requests,
     blocked: afterSnap.blocked_pre_semantic,
+    attempted: afterSnap.attempted,
     executed: afterSnap.executed,
-    sum_holds: afterSnap.total === (afterSnap.blocked_pre_semantic + afterSnap.executed),
+    failed: afterSnap.failed,
+    sum_holds_primary: afterSnap.total_requests === (afterSnap.blocked_pre_semantic + afterSnap.attempted),
+    sum_holds_secondary: afterSnap.attempted === (afterSnap.executed + afterSnap.failed),
     timestamp: new Date().toISOString()
   };
   const invariantSig = await ModelAdapter.signPayload(attestationPayload);
@@ -1790,7 +1811,7 @@ function renderPreSemanticProof(input, risk, govState, modelState, evidenceEvent
   } else {
     html+=`<div class="psp-flow-node" style="background:#d1fae5;border:2px solid var(--gn);color:var(--gn)">\u2705 Gate passed \u2014 forwarded to model</div>
       <div class="psp-flow-arrow">\u2193</div>
-      <div class="psp-flow-node" style="background:#dbeafe;border:2px solid var(--bl);color:var(--bl)">Model Invocation: EXECUTED (controlled)</div>`;
+      <div class="psp-flow-node" style="background:#dbeafe;border:2px solid var(--bl);color:var(--bl)">Model Dispatch: ATTEMPTED (governed)</div>`;
   }
   html+=`</div>`;
   
@@ -1806,8 +1827,12 @@ function renderPreSemanticProof(input, risk, govState, modelState, evidenceEvent
     html+=`<span class="psp-badge green">Tokens generated: 0</span>`;
   } else {
     html+=`<span class="psp-badge green">GATE PASSED</span>`;
-    html+=`<span class="psp-badge blue">MODEL INVOKED (governed)</span>`;
-    html+=`<span class="psp-badge amber">GPU time: ~${modelState.gpu_time_ms} ms</span>`;
+    html+=`<span class="psp-badge blue">DISPATCH ATTEMPTED (governed)</span>`;
+    const execBadge=modelState.tokens_generated>0?
+      `<span class="psp-badge green">MODEL EXECUTION: ${modelState.tokens_generated} tokens</span>`:
+      `<span class="psp-badge amber">MODEL EXECUTION: NOT EXECUTED (0 tokens)</span>`;
+    html+=execBadge;
+    html+=`<span class="psp-badge amber">GPU time: ~${modelState.gpu_time_ms} ms (self-report)</span>`;
     html+=`<span class="psp-badge amber">Tokens: ${modelState.tokens_generated}</span>`;
   }
   html+=`</div></div>`;
@@ -1833,10 +1858,12 @@ function renderPreSemanticProof(input, risk, govState, modelState, evidenceEvent
       </div>
       <div style="margin-top:6px;border-top:1px solid var(--bd);padding-top:6px">
         <div style="font-weight:600;font-size:11px;margin-bottom:4px;color:var(--ac3)">Monotonic Invocation Counter (Model Adapter process-scoped)</div>
-        <div><span class="k">invocations_total:</span> <span class="v blue">${counters.total}</span></div>
-        <div><span class="k">invocations_blocked_pre_semantic:</span> <span class="v red">${counters.blocked_pre_semantic}</span></div>
-        <div><span class="k">invocations_executed:</span> <span class="v ${counters.executed>0?'green':'red'}">${counters.executed}</span></div>
-        <div><span class="k">counter_source:</span> <span class="v blue">${counters.invocation_counter_source}</span></div>`;
+        <div><span class="k">total_requests:</span> <span class="v blue">${counters.total_requests}</span></div>
+        <div><span class="k">blocked_pre_semantic:</span> <span class="v red">${counters.blocked_pre_semantic}</span></div>
+        <div><span class="k">attempted:</span> <span class="v ${counters.attempted>0?'amber':'blue'}">${counters.attempted}</span></div>
+        <div><span class="k">executed:</span> <span class="v ${counters.executed>0?'green':'red'}">${counters.executed}</span></div>
+        <div><span class="k">failed:</span> <span class="v ${counters.failed>0?'amber':'green'}">${counters.failed}</span></div>
+        <div><span class="k">counter_source:</span> <span class="v blue">${counters.counter_source}</span></div>`;
   if(counterVerify){
     html+=`<div><span class="k">counter_delta:</span> <span class="v ${counterVerify.invocation_delta===0?'green':'amber'}">${counterVerify.invocation_delta}</span></div>
         <div><span class="k">counter_invariant_verified:</span> <span class="v ${counterVerify.counter_verified?'green':'red'}">${counterVerify.counter_verified}${counterVerify.violation?' — '+counterVerify.violation:''}</span></div>
@@ -1862,7 +1889,8 @@ function renderPreSemanticProof(input, risk, govState, modelState, evidenceEvent
   });
   html+=`<div style="margin-top:6px">
       <div><span class="k">Hash chain integrity:</span> <span class="v green">\u2705 VERIFIED</span></div>
-      <div><span class="k">Model invocation recorded:</span> <span class="v ${blocked?'red':'amber'}">${blocked?'FALSE \u2014 no model event exists':'TRUE \u2014 governed invocation'}</span></div>
+      <div><span class="k">Model dispatch recorded:</span> <span class="v ${blocked?'red':'amber'}">${blocked?'FALSE \u2014 no dispatch event exists':'TRUE \u2014 governed dispatch attempt'}</span></div>
+      <div><span class="k">Model execution:</span> <span class="v ${blocked?'red':counters.executed>0?'green':'amber'}">${blocked?'NOT EXECUTED (blocked pre-semantic)':counters.executed>0?'EXECUTED ('+counters.executed+' invocations)':'NOT EXECUTED (dispatch attempted, fetch failed)'}</span></div>
       <div><span class="k">pre_model_decision_hash:</span> <span class="v blue">${govState.decision_hash?.substring(0,32)||'...'}\u2026</span></div>
       <div><span class="k">signed_payload_hash:</span> <span class="v blue">${govState.request_payload_hash?.substring(0,32)||'...'}\u2026</span></div>
     </div>
@@ -1905,10 +1933,12 @@ function renderPreSemanticProof(input, risk, govState, modelState, evidenceEvent
       <div><span class="k">bidirectional_write:</span> <span class="v red">prohibited</span></div>
       <div style="margin-top:6px;border-top:1px solid var(--bd);padding-top:6px">
         <div style="font-weight:600;font-size:11px;margin-bottom:4px;color:var(--ac3)">\uD83D\uDD22 Invocation Counter (Adapter-Signed)</div>
-        <div><span class="k">total:</span> <span class="v blue">${counters.total}</span></div>
+        <div><span class="k">total_requests:</span> <span class="v blue">${counters.total_requests}</span></div>
         <div><span class="k">blocked_pre_semantic:</span> <span class="v red">${counters.blocked_pre_semantic}</span></div>
+        <div><span class="k">attempted:</span> <span class="v ${counters.attempted>0?'amber':'blue'}">${counters.attempted}</span></div>
         <div><span class="k">executed:</span> <span class="v ${counters.executed>0?'green':'red'}">${counters.executed}</span></div>
-        <div><span class="k">invariant_holds:</span> <span class="v ${counters.invariant_holds?'green':'red'}">${counters.invariant_holds} (${counters.total} == ${counters.blocked_pre_semantic} + ${counters.executed})</span></div>
+        <div><span class="k">failed:</span> <span class="v ${counters.failed>0?'amber':'green'}">${counters.failed}</span></div>
+        <div><span class="k">invariant_holds:</span> <span class="v ${counters.invariant_holds?'green':'red'}">${counters.invariant_holds} (total_requests=${counters.total_requests} == blocked=${counters.blocked_pre_semantic} + attempted=${counters.attempted}) &amp; (attempted=${counters.attempted} == executed=${counters.executed} + failed=${counters.failed})</span></div>
         <div><span class="k">monotonic:</span> <span class="v green">true</span></div>
         <div><span class="k">signature_verified:</span> <span class="v green">\u2705</span></div>
       </div>
@@ -1916,7 +1946,7 @@ function renderPreSemanticProof(input, risk, govState, modelState, evidenceEvent
         <div style="font-weight:600;font-size:11px;margin-bottom:4px;color:var(--ac3)">\uD83D\uDD17 Cross-Trail Integrity</div>
         <div><span class="k">Trail A (Governance):</span> <span class="v green">${evidenceLog.length} events</span></div>
         <div><span class="k">Trail B (Invocation):</span> <span class="v ${invTrailLen>0?'blue':'red'}">${invTrailLen} events</span></div>
-        <div><span class="k">no_invocation_proof:</span> <span class="v ${!modelState.dispatch_attempted?'green':'amber'}">${!modelState.dispatch_attempted?'✅ SIGNED (ECDSA_P256) — NO model forward':'⚠ dispatch_attempted=true'}</span></div>
+        <div><span class="k">no_invocation_proof:</span> <span class="v ${!modelState.dispatch_attempted?'green':'amber'}">${!modelState.dispatch_attempted?'✅ SIGNED (ECDSA_P256) — NO model forward':'N/A — dispatch_attempted=true (allow path)'}</span></div>
         <div><span class="k">Trail C (Auditor):</span> <span class="v green">derived</span></div>
         <div><span class="k">A \u2194 B anchor:</span> <span class="v green">\u2705 cross-referenced</span></div>
         <div><span class="k">mutual_tamper_detection:</span> <span class="v green">enabled</span></div>
@@ -3085,10 +3115,11 @@ const PSDM = {
     if(!this.baseline.signalEntropy)this.baseline.signalEntropy=ent;
     
     // 4) Invocation integrity ratio
-    const tot=counters.total||1;
+    const tot=counters.total_requests||1;
     const exec=counters.executed||0;
     const blk=counters.blocked_pre_semantic||0;
-    this.current.integrityRatio=(exec+blk)/Math.max(tot,1);
+    const att=counters.attempted||0;
+    this.current.integrityRatio=(blk+att)/Math.max(tot,1);
     
     // 5) Policy alignment
     this.current.policyOk=(POLICY_REGISTRY.version===this.baseline.policyVersion)||!this.baseline.policyVersion;
@@ -3751,7 +3782,7 @@ function buildPreSemanticEnforcement(blocked, counterBefore, counterAfter){
       model_process_spawned:false,
       outbound_bytes:0,
       invocation_counter_before:counterBefore||0,
-      invocation_counter_after:counterAfter||ModelAdapter._invocation_counter.total,
+      invocation_counter_after:counterAfter||ModelAdapter._invocation_counter.total_requests,
       invocation_total_delta:1,
       invocation_blocked_delta:1,
       invocation_forward_delta:0,
@@ -3766,7 +3797,7 @@ function buildPreSemanticEnforcement(blocked, counterBefore, counterAfter){
     model_process_spawned:true,
     network_socket_opened:true,
     invocation_counter_before:counterBefore||0,
-    invocation_counter_after:counterAfter||ModelAdapter._invocation_counter.total,
+    invocation_counter_after:counterAfter||ModelAdapter._invocation_counter.total_requests,
     invocation_total_delta:1,
     invocation_blocked_delta:0,
     invocation_forward_delta:1
@@ -3925,10 +3956,15 @@ async function buildInvocationTrail(){
     process_key_thumbprint: ModelAdapter._process_key_thumbprint,
     hash_of_trail_a_decision_event: ([...evidenceLog].reverse().find(e=>e.type==='pre_model_gate_triggered'))?.hash || prevHash,
     invocation_counter: {
-      total: counters.total,
+      total_requests: counters.total_requests,
       blocked_pre_semantic: counters.blocked_pre_semantic,
+      attempted: counters.attempted,
       executed: counters.executed,
+      failed: counters.failed,
       monotonic: true,
+      invariant_holds: counters.invariant_holds,
+      invariant_primary: 'total_requests == blocked_pre_semantic + attempted',
+      invariant_secondary: 'attempted == executed + failed',
       counter_source: 'MODEL_ADAPTER_PROCESS_ONLY',
       counter_signature: counterSig
     },
@@ -3949,7 +3985,9 @@ async function buildAuditorTrail(anchor, crossAnchors){
   const j=JURISDICTIONS[currentJur];
   const counters=ModelAdapter.getCounterSnapshot();
   const blocked=counters.blocked_pre_semantic;
+  const attempted=counters.attempted;
   const executed=counters.executed;
+  const failed=counters.failed;
   return {
     trail_id: 'TRAIL_C_AUDITOR',
     purpose: 'Minimal evidence view for external audit. No internal weights or telemetry.',
@@ -3962,13 +4000,21 @@ async function buildAuditorTrail(anchor, crossAnchors){
     total_events: evidenceLog.length,
     oversight_events: evidenceLog.filter(e=>e.type.startsWith('oversight')).length,
     invocation_counter_summary: {
-      total_requests: blocked+executed,
+      total_requests: counters.total_requests,
       blocked_pre_semantic: blocked,
+      attempted: attempted,
       executed: executed,
-      counter_monotonic: true
+      failed: failed,
+      invariant_primary_holds: counters.total_requests === (blocked + attempted),
+      invariant_secondary_holds: attempted === (executed + failed),
+      counter_monotonic: true,
+      projection_source: 'TRAIL_B_READ_ONLY'
     },
     pre_semantic_proof_summary: {
       pre_model_blocks: blocked,
+      dispatch_attempts: attempted,
+      model_executions: executed,
+      dispatch_failures: failed,
       model_invoked_when_blocked: false,
       invocation_delta_on_block: 0,
       adapter_signature_verified: true
@@ -4019,7 +4065,7 @@ async function exportAudit(mode){
   const govTrail = buildGovernanceTrail();
   const counters = ModelAdapter.getCounterSnapshot();
   const blocked = counters.blocked_pre_semantic>0;
-  const preEnf = buildPreSemanticEnforcement(blocked, 0, counters.total);
+  const preEnf = buildPreSemanticEnforcement(blocked, 0, counters.total_requests);
   // Compute integrity root first, then anchor it
   const integrityRoot = await computeIntegrityRoot(prevHash, await ModelAdapter.getTrailHash(), PSDM.prevHash, PHDM.prevHash, policySpecHash, rtAttest, crossAnchors);
   const anchor = await buildExternalTimeAnchor(integrityRoot);
@@ -4236,7 +4282,7 @@ async function runVerifier(){
   let counterMono=true;
   let lastTotal=-1;
   for(const evt of trail){
-    const t=evt.invocation_counter_state?.total||0;
+    const t=evt.invocation_counter_state?.total_requests||evt.invocation_counter_state?.total||0;
     const b=evt.invocation_counter_state?.blocked_pre_semantic||0;
     if(t<lastTotal){counterMono=false;break;}
     lastTotal=Math.max(t,b);
