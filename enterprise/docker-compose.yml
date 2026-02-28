@@ -2,13 +2,15 @@
 # AegisFrame PSCP Hardware Proof Stack
 # X-Loop³ Labs · Kreuzlingen, Switzerland
 #
-# Run: docker compose up --build
+# Build: docker compose up --build (requires Rust toolchain on host or uses multi-stage)
 # Requires: NVIDIA GPU + nvidia-container-toolkit installed
 # ============================================================
 
 services:
   aegisframe:
-    build: .
+    build:
+      context: ..
+      dockerfile: enterprise/Dockerfile
     runtime: nvidia
     privileged: true  # Required for eBPF kernel probes
     ports:
@@ -17,7 +19,8 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
       - AEGISFRAME_MODE=HARDWARE_PROOF
-      - AEGISFRAME_VERSION=v0.6.0-enterprise
+      - AEGISFRAME_VERSION=v0.7.0
+      - RUST_LOG=info
     volumes:
       - /sys/kernel/debug:/sys/kernel/debug:ro        # eBPF debugfs
       - /proc:/host/proc:ro                            # Process inspection
