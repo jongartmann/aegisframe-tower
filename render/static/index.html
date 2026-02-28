@@ -3816,8 +3816,8 @@ async function computeIntegrityRoot(govHash, invHash, preVitHash, postVitHash, s
   };
 }
 
-async function computeExternalAnchor(){
-  return await buildExternalTimeAnchor();
+async function computeExternalAnchor(integrityRoot){
+  return await buildExternalTimeAnchor(integrityRoot);
 }
 
 async function buildGovernanceTrail(){
@@ -4196,16 +4196,23 @@ async function runVerifier(){
     lastTotal=Math.max(t,b);
   }
   
-  // Verify anchor
-  const anchor=await computeExternalAnchor();
-  const anchorOk=anchor.anchor_hash!=null;
-  
   // Verify cross-trail anchors
   const crossAnchors = await buildCrossTrailAnchors();
   const crossOk = crossAnchors.mutual_tamper_detection===true;
-  
+
   // Runtime attestation
-  const rtOk = GovernanceEngine.binary_hash!=null && ModelAdapter.binary_hash!=null;
+  const rtAttest = buildRuntimeAttestation();
+  const rtOk = (GovernanceEngine.binary_hash!=null && ModelAdapter.binary_hash!=null);
+
+  // Compute Integrity Root (anchored object)
+  const govHash = prevHash;
+  const invHash = await ModelAdapter.getTrailHash();
+  const z64 = '0'.repeat(64);
+  const integrityRoot = await computeIntegrityRoot(govHash, invHash, z64, z64, policySpecHash, rtAttest, crossAnchors);
+
+  // Verify anchor (RFC3161 / fallback)
+  const anchor = await computeExternalAnchor(integrityRoot);
+  const anchorOk = (anchor?.verified === true) && !!anchor?.anchored_hash && (anchor.anchored_hash === integrityRoot.integrity_root_hash);
   
   const allOk=r.ok&&invSigsOk&&counterMono&&anchorOk&&crossOk&&rtOk;
   
