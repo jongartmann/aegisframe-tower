@@ -3,16 +3,8 @@ AegisFrame Control Tower — Render Server
 X-Loop³ Labs · Kreuzlingen, Switzerland
 Patent Pending · USPTO
 
-Serves the AegisFrame Control Tower + Runtime Monitor
+Serves the AegisFrame Control Tower + Runtime Monitor demo
 with a REAL RFC 3161 Timestamp Authority endpoint via freetsa.org
-
-PATCH NOTES (server.patched.py)
-- Logs EXACT static/index.html path + sha256 prefix on every GET /
-- Uses app.static_folder consistently (avoids relative-path surprises)
-- Optional /favicon.ico handler (silences 404 noise)
-- Adds SAME-ORIGIN LLM proxy endpoint for Mistral:
-    POST /api/v1/llm/messages
-  (fixes browser CORS issues by never calling the provider directly from the browser)
 """
 
 import os
@@ -20,17 +12,10 @@ import hashlib
 import subprocess
 import tempfile
 import time
+import json
 import logging
-from pathlib import Path
 from datetime import datetime, timezone
-
 from flask import Flask, send_from_directory, jsonify, request
-
-# Optional dependency used for the LLM proxy
-try:
-    import requests  # pip install requests
-except Exception:
-    requests = None
 
 app = Flask(__name__, static_folder='static')
 logging.basicConfig(level=logging.INFO)
@@ -41,32 +26,7 @@ logger = logging.getLogger('aegisframe')
 # ============================================================
 @app.route('/')
 def index():
-    """
-    Always serve from app.static_folder/index.html.
-    Log absolute path + sha256 prefix so we can prove which file is live on Render.
-    """
-    p = Path(app.static_folder) / "index.html"
-    try:
-        data = p.read_bytes()
-        h = hashlib.sha256(data).hexdigest()[:12]
-        logger.info(f"SERVING index.html => {p.resolve()} sha256[:12]={h} cwd={os.getcwd()}")
-    except Exception as e:
-        logger.error(f"FAILED to read index.html => {p.resolve()} cwd={os.getcwd()} err={e}")
-
-    return send_from_directory(app.static_folder, 'index.html')
-
-
-@app.route('/favicon.ico')
-def favicon():
-    """
-    Optional: place static/favicon.ico in repo.
-    If missing, return 204 to avoid noisy 404 spam.
-    """
-    ico = Path(app.static_folder) / "favicon.ico"
-    if not ico.exists():
-        return ("", 204)
-    return send_from_directory(app.static_folder, 'favicon.ico')
-
+    return send_from_directory('static', 'index.html')
 
 @app.route('/health')
 def health():
@@ -82,6 +42,12 @@ def health():
 # ============================================================
 # REAL RFC 3161 TSA ENDPOINT
 # ============================================================
+# Uses openssl ts command to create a proper TimeStampReq,
+# sends it to freetsa.org, and returns the real TSA response.
+#
+# freetsa.org is a free, public RFC 3161 TSA.
+# The timestamp token is cryptographically verifiable.
+# ============================================================
 
 @app.route('/api/v1/tsa/anchor', methods=['POST'])
 def tsa_anchor():
@@ -94,16 +60,16 @@ def tsa_anchor():
         data = request.get_json()
         if not data or 'hash' not in data:
             return jsonify({'error': 'Missing hash field'}), 400
-
+        
         hash_hex = data['hash']
         client_ts = data.get('timestamp', datetime.now(timezone.utc).isoformat())
-
+        
         # Validate hash format (should be 64 hex chars = SHA-256)
         if len(hash_hex) != 64:
             return jsonify({'error': 'Hash must be 64 hex characters (SHA-256)'}), 400
-
+        
         result = call_rfc3161_tsa(hash_hex)
-
+        
         if result['success']:
             logger.info(f"TSA anchor successful: {result['receipt_id']}")
             return jsonify({
@@ -139,7 +105,7 @@ def tsa_anchor():
                 'verified': False,
                 'timestamp': client_ts
             })
-
+    
     except Exception as e:
         logger.error(f"TSA endpoint error: {e}")
         return jsonify({'error': str(e)}), 500
@@ -148,7 +114,7 @@ def tsa_anchor():
 def call_rfc3161_tsa(hash_hex: str) -> dict:
     """
     Makes a real RFC 3161 timestamp request using openssl.
-
+    
     Steps:
     1. Write the hash to a temp file
     2. Create a TimeStampReq with openssl ts -query
@@ -159,11 +125,14 @@ def call_rfc3161_tsa(hash_hex: str) -> dict:
     hash_file = os.path.join(tmpdir, 'data.txt')
     tsq_file = os.path.join(tmpdir, 'request.tsq')
     tsr_file = os.path.join(tmpdir, 'response.tsr')
-
+    
     try:
+        # Write hash as data to timestamp
         with open(hash_file, 'w') as f:
             f.write(hash_hex)
-
+        
+        # Create timestamp request
+        # openssl ts -query -data <file> -no_nonce -sha256 -out request.tsq
         proc = subprocess.run([
             'openssl', 'ts', '-query',
             '-data', hash_file,
@@ -171,10 +140,14 @@ def call_rfc3161_tsa(hash_hex: str) -> dict:
             '-sha256',
             '-out', tsq_file
         ], capture_output=True, timeout=10)
-
+        
         if proc.returncode != 0:
-            return {'success': False, 'error': f'openssl ts -query failed: {proc.stderr.decode()}'}
-
+            return {
+                'success': False,
+                'error': f'openssl ts -query failed: {proc.stderr.decode()}'
+            }
+        
+        # Send to freetsa.org
         proc = subprocess.run([
             'curl', '-s', '-S',
             '-H', 'Content-Type: application/timestamp-query',
@@ -183,36 +156,47 @@ def call_rfc3161_tsa(hash_hex: str) -> dict:
             '-o', tsr_file,
             'https://freetsa.org/tsr'
         ], capture_output=True, timeout=20)
-
+        
         if proc.returncode != 0:
-            return {'success': False, 'error': f'curl to freetsa.org failed: {proc.stderr.decode()}'}
-
+            return {
+                'success': False,
+                'error': f'curl to freetsa.org failed: {proc.stderr.decode()}'
+            }
+        
+        # Check response exists and has content
         if not os.path.exists(tsr_file) or os.path.getsize(tsr_file) == 0:
-            return {'success': False, 'error': 'Empty response from TSA'}
-
+            return {
+                'success': False,
+                'error': 'Empty response from TSA'
+            }
+        
         response_size = os.path.getsize(tsr_file)
-
+        
+        # Read response as hex
         with open(tsr_file, 'rb') as f:
             receipt_bytes = f.read()
         receipt_hex = receipt_bytes.hex()
-
+        
+        # Hash the TSA receipt as our token
         token_hash = hashlib.sha256(receipt_bytes).hexdigest()
         receipt_id = f'TSA_{int(time.time())}_{token_hash[:8]}'
-
+        
+        # Try to verify/parse the response
         tsa_timestamp = None
         proc = subprocess.run([
             'openssl', 'ts', '-reply',
             '-in', tsr_file,
             '-text'
         ], capture_output=True, timeout=10)
-
+        
         if proc.returncode == 0:
             text_output = proc.stdout.decode()
+            # Extract time from response
             for line in text_output.split('\n'):
                 if 'Time stamp:' in line:
                     tsa_timestamp = line.split(':', 1)[1].strip()
                     break
-
+        
         return {
             'success': True,
             'token_hash': token_hash,
@@ -221,62 +205,22 @@ def call_rfc3161_tsa(hash_hex: str) -> dict:
             'response_size': response_size,
             'tsa_timestamp': tsa_timestamp
         }
-
+    
     except subprocess.TimeoutExpired:
         return {'success': False, 'error': 'TSA request timed out'}
     except Exception as e:
         return {'success': False, 'error': str(e)}
     finally:
+        # Cleanup
         for f in [hash_file, tsq_file, tsr_file]:
             try:
                 os.remove(f)
-            except Exception:
+            except:
                 pass
         try:
             os.rmdir(tmpdir)
-        except Exception:
+        except:
             pass
-
-
-# ============================================================
-# LLM PROXY (Mistral) — fixes browser CORS
-# Browser MUST call this endpoint instead of hitting Mistral directly.
-# ============================================================
-@app.route('/api/v1/llm/messages', methods=['POST'])
-def llm_messages():
-    """
-    Same-origin proxy for Mistral chat completions.
-
-    Requires:
-      - requests installed (add to requirements.txt)
-      - Render env var: MISTRAL_API_KEY
-    """
-    if requests is None:
-        return jsonify({'error': 'requests not installed. Add "requests" to requirements.txt'}), 500
-
-    api_key = os.environ.get("MISTRAL_API_KEY")
-    if not api_key:
-        return jsonify({'error': 'Missing MISTRAL_API_KEY env var'}), 500
-
-    payload = request.get_json(force=True)
-
-    # Common Mistral endpoint (adjust if your deployment differs)
-    url = "https://api.mistral.ai/v1/chat/completions"
-
-    try:
-        r = requests.post(
-            url,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=45,
-        )
-        return (r.text, r.status_code, {"content-type": "application/json"})
-    except Exception as e:
-        logger.error(f"LLM proxy error: {e}")
-        return jsonify({'error': str(e)}), 500
 
 
 # ============================================================
@@ -297,8 +241,7 @@ def api_status():
             'ecdsa_p256': True,
             'sha256_evidence_chain': True,
             'multi_trail': True,
-            'countdown_oversight': True,
-            'llm_proxy_mistral': True
+            'countdown_oversight': True
         },
         'tsa': {
             'provider': 'freetsa.org',
@@ -317,5 +260,4 @@ if __name__ == '__main__':
     logger.info(f'AegisFrame Control Tower starting on port {port}')
     logger.info(f'TSA Provider: freetsa.org (RFC 3161 LIVE)')
     logger.info(f'Version: v0.6.0-enterprise')
-    logger.info(f'static_folder={app.static_folder} cwd={os.getcwd()}')
     app.run(host='0.0.0.0', port=port, debug=False)
