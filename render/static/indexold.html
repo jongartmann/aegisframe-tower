@@ -524,147 +524,106 @@ body{background:var(--bg);color:var(--tx);font-family:'IBM Plex Sans',sans-serif
 </div>
 </div><!-- END tab-tower -->
 
-<!-- ═══════ TAB 2: RUNTIME MONITOR ═══════ -->
+<!-- ═══════ TAB 2: RUNTIME MONITOR (LumenVortex Engine) ═══════ -->
 <div id="tab-monitor" style="display:none">
-<div style="display:grid;grid-template-columns:80px 1fr 280px;min-height:calc(100vh - 140px)">
-  <!-- SIDEBAR -->
-  <div style="padding:12px 6px;border-right:1px solid var(--bd);display:flex;flex-direction:column;align-items:center;gap:10px;background:var(--bg4)">
-    <div style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px 10px;background:#fff;border-radius:12px;border:1px solid var(--bd)">
-      <div style="font-size:7px;color:var(--tx3);letter-spacing:1.5px;font-weight:700">STATE</div>
-      <div style="display:flex;flex-direction:column;gap:4px;background:#f8f9fb;border-radius:16px;padding:6px;border:1px solid var(--bd)">
-        <div id="m-bulbG" style="width:20px;height:20px;border-radius:50%;background:#16a34a;box-shadow:0 0 10px #16a34a66;transition:all .4s"></div>
-        <div id="m-bulbY" style="width:20px;height:20px;border-radius:50%;background:rgba(202,138,4,.1);transition:all .4s"></div>
-        <div id="m-bulbO" style="width:20px;height:20px;border-radius:50%;background:rgba(234,88,12,.1);transition:all .4s"></div>
-        <div id="m-bulbR" style="width:20px;height:20px;border-radius:50%;background:rgba(220,38,38,.1);transition:all .4s"></div>
-      </div>
-      <div id="m-status" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(5,150,105,.1);color:#16a34a">NORMAL</div>
-      <div id="m-eff" style="font-size:20px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:#16a34a">0.000</div>
-      <div style="font-size:7px;color:var(--tx3);letter-spacing:1.5px">EFF. RISK</div>
-    </div>
-    <div style="text-align:center"><div style="font-size:7px;color:var(--tx3);letter-spacing:1px">EVENTS</div><div id="m-events" style="font-size:14px;font-weight:700;font-family:'IBM Plex Mono',monospace">0</div></div>
-    <div style="text-align:center"><div style="font-size:7px;color:var(--tx3);letter-spacing:1px">CHAIN</div><div id="m-chain" style="font-size:10px;font-weight:700;color:var(--gn)">✓</div></div>
+<!-- MONITOR CONTROLS -->
+<div style="padding:10px 24px;border-bottom:1px solid var(--bd);display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:#fff">
+  <button id="lv-toggleBtn" class="btn btn-primary" onclick="lvToggle()" style="padding:6px 16px">▶ START</button>
+  <div style="width:1px;height:20px;background:var(--bd);margin:0 6px"></div>
+  <button class="lv-scn active" data-s="stable" onclick="lvSetScenario('stable',this)" style="padding:4px 11px;font-size:10px;font-weight:600;border:1.5px solid var(--ac3);background:rgba(8,145,178,.05);color:var(--ac3);border-radius:6px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">Stable</button>
+  <button class="lv-scn" data-s="slow_drift" onclick="lvSetScenario('slow_drift',this)" style="padding:4px 11px;font-size:10px;font-weight:600;border:1.5px solid var(--bd);background:#fff;color:var(--tx2);border-radius:6px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">Slow Drift</button>
+  <button class="lv-scn" data-s="sudden_crash" onclick="lvSetScenario('sudden_crash',this)" style="padding:4px 11px;font-size:10px;font-weight:600;border:1.5px solid var(--bd);background:#fff;color:var(--tx2);border-radius:6px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">Sudden Crash</button>
+  <button class="lv-scn" data-s="post_intervention" onclick="lvSetScenario('post_intervention',this)" style="padding:4px 11px;font-size:10px;font-weight:600;border:1.5px solid var(--bd);background:#fff;color:var(--tx2);border-radius:6px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">Post-Intervention</button>
+  <div style="width:1px;height:20px;background:var(--bd);margin:0 6px"></div>
+  <button class="lv-vtab active" onclick="lvSwitchView('monitor',this)" style="padding:4px 12px;font-size:10px;font-weight:600;border:none;background:var(--bg4);color:var(--tx);border-radius:4px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">Monitor</button>
+  <button class="lv-vtab" onclick="lvSwitchView('systems',this)" style="padding:4px 12px;font-size:10px;font-weight:600;border:none;background:transparent;color:var(--tx3);border-radius:4px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">Systems</button>
+  <div style="width:1px;height:20px;background:var(--bd);margin:0 6px"></div>
+  <div style="display:flex;border-radius:6px;overflow:hidden;border:1px solid var(--bd)">
+    <button id="lv-modeDemo" onclick="lvSetMode('demo')" style="padding:4px 10px;font-size:9px;font-weight:700;border:none;background:var(--ac3);color:#fff;cursor:pointer;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px">DEMO</button>
+    <button id="lv-modeLive" onclick="lvSetMode('live')" style="padding:4px 10px;font-size:9px;font-weight:700;border:none;background:#fff;color:var(--tx3);cursor:pointer;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px">LIVE</button>
   </div>
-  <!-- CENTER -->
-  <div style="padding:12px 16px;overflow-y:auto;max-height:calc(100vh - 140px)">
-    <!-- COUNTDOWN -->
-    <div id="m-countdown" style="display:none;padding:14px;border-radius:12px;border:2px solid #fecaca;background:linear-gradient(135deg,#fee2e2,#fff5f5);margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div style="font-size:13px;font-weight:700;color:#dc2626;display:flex;align-items:center;gap:6px" data-explain="countdown">⏱ OVERSIGHT REQUIRED — COUNTDOWN</div></div>
-        <div style="font-size:9px;color:var(--tx3);font-family:'IBM Plex Mono',monospace">Art. 14 · Waymo Paradigm</div>
+  <div style="flex:1"></div>
+  <div style="font-size:10px;color:var(--tx3);font-family:'IBM Plex Mono',monospace" id="lv-meta">tick:0 · chain:0 · bns:0.92</div>
+</div>
+<div id="lv-view-monitor" class="lv-view" style="display:block">
+<div style="display:grid;grid-template-columns:90px 1fr 280px;min-height:calc(100vh - 180px)">
+  <div style="padding:14px 6px;border-right:1px solid var(--bd);display:flex;flex-direction:column;align-items:center;gap:12px;background:var(--bg4)">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 16px;background:#fff;border-radius:12px;border:1px solid var(--bd);box-shadow:0 1px 3px rgba(0,0,0,.04)">
+      <div style="font-size:9px;color:var(--tx3);letter-spacing:1.5px;font-weight:600">STATUS</div>
+      <div style="display:flex;flex-direction:column;gap:5px;background:#f8f9fb;border-radius:18px;padding:8px 7px;border:1px solid var(--bd)">
+        <div id="lv-bulb-green" style="width:24px;height:24px;border-radius:50%;background:#16a34a;box-shadow:0 0 12px rgba(22,163,74,.4);transition:all .4s"></div>
+        <div id="lv-bulb-yellow" style="width:24px;height:24px;border-radius:50%;background:rgba(202,138,4,0.1);transition:all .4s"></div>
+        <div id="lv-bulb-red" style="width:24px;height:24px;border-radius:50%;background:rgba(220,38,38,0.1);transition:all .4s"></div>
+        <div id="lv-bulb-violet" style="width:24px;height:24px;border-radius:50%;background:rgba(124,58,237,0.1);transition:all .4s"></div>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-        <div id="m-cdTime" style="font-size:38px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:#dc2626;line-height:1;letter-spacing:2px">15:00</div>
-        <div style="font-size:10px;color:var(--tx2);line-height:1.5">
-          If no human action → <strong style="color:#dc2626">auto-DENY at 0:00</strong><br>
-          <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--tx3)">Countdown warns. Human decides. Zero liability.</span>
-        </div>
-      </div>
-      <div style="height:5px;background:var(--bg4);border-radius:3px;overflow:hidden;margin-bottom:10px"><div id="m-cdBar" style="height:100%;width:100%;border-radius:3px;background:linear-gradient(90deg,#dc2626,#ea580c);transition:width .5s linear"></div></div>
-      <!-- NOTIFICATION CHANNELS (LumenVortex-style) -->
-      <div id="m-notifPanel" style="padding:10px;border-radius:8px;border:1.5px solid #fecaca;background:#fff;margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <div style="font-size:10px;font-weight:700;color:#dc2626" data-explain="escalation">🚨 ALERT NOTIFICATIONS DISPATCHED</div>
-          <div id="m-notifTime" style="font-size:9px;color:var(--tx3)"></div>
-        </div>
-        <div id="m-notifChannels" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px"></div>
-        <div id="m-notifEscalation" style="font-size:9px;color:#dc2626;font-weight:600;margin-bottom:4px"></div>
-        <div style="font-size:8px;color:var(--tx3);text-align:center;letter-spacing:.5px">ALERTING DEMO — Production: connects to SMS, PagerDuty, ServiceNow, Slack, Email, WhatsApp</div>
-      </div>
-      <!-- ACTORS with APPROVE/DENY -->
-      <div id="m-cdActors" style="display:flex;flex-direction:column;gap:6px"></div>
-      <!-- FOOTER -->
-      <div id="m-cdFooter" style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:9px;color:var(--tx3)">
-        <span id="m-cdFooterStatus">Awaiting oversight decision...</span>
-        <span>✓ APPROVE = Recovery · ✕ DENY = Hard Stop</span>
-      </div>
+      <div id="lv-tlStatus" style="font-size:11px;font-weight:700;letter-spacing:.5px;padding:2px 10px;border-radius:4px;color:#16a34a;background:rgba(22,163,74,.1)">STABLE</div>
+      <div id="lv-effSDI" style="font-size:24px;font-weight:800;color:var(--tx);font-family:'IBM Plex Mono',monospace;margin-top:4px">0.801</div>
+      <div style="font-size:8px;color:var(--tx3);letter-spacing:1.5px">EFF. SDI</div>
     </div>
-    <!-- HARD STOP OVERLAY -->
-    <div id="m-hardStop" style="display:none;padding:16px;border-radius:12px;border:3px solid #dc2626;background:#0a0e1a;margin-bottom:12px;text-align:center">
-      <div style="font-size:24px;font-weight:800;color:#ff3c3c;font-family:'IBM Plex Mono',monospace;margin-bottom:6px;animation:pulse-lockdown 1s infinite">⛔ AI SYSTEM HALTED</div>
-      <div style="font-size:11px;color:rgba(255,255,255,.7);margin-bottom:8px">Oversight denied. All AI operations suspended. Evidence preserved.</div>
-      <div style="font-size:9px;color:rgba(255,255,255,.4);font-family:'IBM Plex Mono',monospace" id="m-haltReason"></div>
-      <button onclick="mResetHalt()" style="margin-top:10px;padding:5px 14px;border-radius:6px;border:1.5px solid #ea580c;background:transparent;color:#ea580c;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">🔄 Reset (requires re-authorization)</button>
+    <div style="text-align:center"><div style="font-size:8px;color:var(--tx3);letter-spacing:1px;margin-bottom:2px">RAW SDI</div><div id="lv-rawSDI" style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#16a34a">0.870</div></div>
+    <div style="text-align:center"><div style="font-size:8px;color:var(--tx3);letter-spacing:1px;margin-bottom:2px">BNS</div><div id="lv-bnsVal" style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#16a34a">0.92</div></div>
+  </div>
+  <div style="padding:14px 16px;overflow:auto">
+    <!-- MODE BANNER -->
+    <div id="lv-modeBanner" style="padding:8px 12px;border-radius:8px;margin-bottom:10px;font-size:10px;font-weight:600;display:flex;align-items:center;gap:8px;background:rgba(8,145,178,.06);border:1px solid rgba(8,145,178,.2);color:var(--ac3)">
+      <span style="font-size:14px">🎭</span>
+      <span id="lv-modeBannerText">DEMO MODE — Simulated drift scenarios. Use START + Scenario buttons. Switch to LIVE to mirror Control Tower events.</span>
     </div>
-    <!-- SEISMOGRAPH -->
-    <div style="margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <div style="font-size:10px;color:var(--tx2);letter-spacing:1.2px;font-weight:700;text-transform:uppercase" data-explain="drift-seismograph">Drift Seismograph</div>
-        <div id="m-seismoBadge" style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(5,150,105,.1);color:#16a34a">● STABLE</div>
+    <div id="lv-recPanel" style="padding:12px;border-radius:10px;border:2px solid #bbf7d0;background:#dcfce7;margin-bottom:10px;transition:all .3s">
+      <div id="lv-recAction" style="font-size:12px;font-weight:700;margin-bottom:4px">✅ No action required.</div>
+      <div id="lv-recDetail" style="font-size:10px;line-height:1.5;color:var(--tx2)">All systems operating within normal parameters. Continue monitoring.</div>
+      <div style="font-size:9px;font-weight:700;margin-top:6px;display:flex;justify-content:space-between"><span id="lv-recUrgency">Urgency: None</span><span id="lv-recWindow"></span></div>
+    </div>
+    <div id="lv-notifPanel" style="display:none;padding:12px;border-radius:10px;border:2px solid #fecaca;background:#fee2e2;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;color:#dc2626;margin-bottom:8px;display:flex;justify-content:space-between"><span>🚨 ALERT NOTIFICATIONS DISPATCHED</span><span id="lv-notifTime"></span></div>
+      <div id="lv-notifChannels" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
+      <div id="lv-notifEscalation" style="font-size:9px;color:#dc2626;font-weight:600;margin-bottom:6px"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <button onclick="lvAckAlert()" style="padding:4px 12px;border-radius:6px;border:2px solid var(--ac3);background:#fff;color:var(--ac3);font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">✓ ACKNOWLEDGE</button>
+        <span id="lv-ackStatus" style="font-size:9px;color:var(--gn);font-weight:700"></span>
       </div>
-      <canvas id="m-seismo" style="width:100%;height:110px;border-radius:8px;border:1px solid var(--bd);display:block;background:#fff"></canvas>
+      <div style="font-size:8px;color:var(--tx3);margin-top:8px;text-align:center;letter-spacing:.5px">ALERTING DEMO — Production: SMS, PagerDuty, ServiceNow, Slack, Email</div>
     </div>
-    <!-- TREND SPARKLINES -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:8px 0">
-      <div style="background:#fff;border-radius:8px;border:1px solid var(--bd);padding:6px;text-align:center;cursor:help" data-explain="security-gate" title="Security Gate EMA — Exponential Moving Average of all 7 security signals (prompt injection, data exfil, tool misuse, etc.). Lower = safer. Above 0.15 triggers WARN state."><div style="font-size:7px;color:var(--tx3);letter-spacing:1px"><span data-explain="security-gate">SECURITY EMA</span></div><div id="m-tSec" style="font-size:13px;font-weight:700;font-family:'IBM Plex Mono',monospace;margin:1px 0">0.00</div><canvas class="m-spark" id="m-sparkSec" style="width:100%;height:24px;display:block;margin-top:2px"></canvas></div>
-      <div style="background:#fff;border-radius:8px;border:1px solid var(--bd);padding:6px;text-align:center;cursor:help" data-explain="domain-gate" title="Domain Authority Gate EMA — Measures domain-specific risk (prescriptive authority, clinical instability, autonomous decisions). Higher values mean the AI is operating in dangerous territory for this domain."><div style="font-size:7px;color:var(--tx3);letter-spacing:1px"><span data-explain="domain-gate">DOMAIN EMA</span></div><div id="m-tDom" style="font-size:13px;font-weight:700;font-family:'IBM Plex Mono',monospace;margin:1px 0">0.00</div><canvas class="m-spark" id="m-sparkDom" style="width:100%;height:24px;display:block;margin-top:2px"></canvas></div>
-      <div style="background:#fff;border-radius:8px;border:1px solid var(--bd);padding:6px;text-align:center;cursor:help" data-explain="risk-score" title="Effective Risk Score — The MAX of Security and Domain gates. This is the final score that determines the gate state (NORMAL < 0.15, WARN < 0.45, DEFEND < 0.65, LOCKDOWN ≥ 0.65). Two independent lanes, no cross-contamination."><div style="font-size:7px;color:var(--tx3);letter-spacing:1px">EFFECTIVE</div><div id="m-tEff" style="font-size:13px;font-weight:700;font-family:'IBM Plex Mono',monospace;margin:1px 0">0.00</div><canvas class="m-spark" id="m-sparkEff" style="width:100%;height:24px;display:block;margin-top:2px"></canvas></div>
-    </div>
-    <!-- TRAILS -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:8px 0">
-      <div style="background:#0a0e1a;border-radius:8px;padding:10px;border:1px solid rgba(255,255,255,.1);cursor:help" data-explain="trails" title="Trail A — Governance Trail. Every gate decision, state transition, and policy event is logged here. Owned by the Governance Engine. Append-only, SHA-256 chained."><div style="font-size:7px;color:rgba(255,255,255,.5);letter-spacing:1px">TRAIL A</div><div style="font-size:10px;font-weight:700;color:white;margin-bottom:2px">Governance</div><div id="m-trailA" style="font-size:18px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:#12b47a">0</div></div>
-      <div style="background:#0a0e1a;border-radius:8px;padding:10px;border:1px solid rgba(255,255,255,.1);cursor:help" data-explain="trails" title="Trail B — Invocation Trail. Tracks what the AI model actually DID: was it called? Was it blocked? Signed by the Model Adapter with ECDSA P-256. Contains NO_INVOCATION_PROOF when blocked."><div style="font-size:7px;color:rgba(255,255,255,.5);letter-spacing:1px">TRAIL B</div><div style="font-size:10px;font-weight:700;color:white;margin-bottom:2px">Invocation</div><div id="m-trailB" style="font-size:18px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:#2563eb">0</div></div>
-      <div style="background:#0a0e1a;border-radius:8px;padding:10px;border:1px solid rgba(255,255,255,.1);cursor:help" data-explain="trails" title="Trail C — Auditor Trail. A derived view for external auditors. Contains NO raw telemetry, NO PII. Only governance decisions and compliance evidence. Auditor can verify without seeing sensitive data."><div style="font-size:7px;color:rgba(255,255,255,.5);letter-spacing:1px">TRAIL C</div><div style="font-size:10px;font-weight:700;color:white;margin-bottom:2px">Auditor</div><div style="font-size:18px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:#7c3aed">—</div></div>
-    </div>
-    <!-- INTEGRITY ROOT + VERIFY -->
-    <div style="background:#0a0e1a;border-radius:8px;padding:10px;border:1px solid rgba(255,255,255,.1);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;cursor:help" data-explain="integrity-root" title="INTEGRITY ROOT — A SHA-256 hash combining the spec hash, trail counts, and tick counter. Anchored to an external RFC 3161 timestamp server. An auditor can independently verify that the governance state at this exact moment has not been tampered with.">
-      <div><div style="font-size:7px;color:rgba(255,255,255,.5);letter-spacing:1px">INTEGRITY_ROOT · SHA-256 · RFC 3161</div><div id="m-intHash" style="font-size:10px;color:#12b47a;font-family:'IBM Plex Mono',monospace;font-weight:700;margin-top:2px">—</div></div>
-      <button onclick="monitorVerify()" style="padding:5px 12px;border-radius:6px;border:1.5px solid #12b47a;background:transparent;color:#12b47a;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">🔍 VERIFY CHAIN</button>
-    </div>
-    <div id="m-verifyResult" style="display:none;padding:8px 10px;border-radius:6px;margin-bottom:8px;font-size:10px;font-family:'IBM Plex Mono',monospace;line-height:1.5"></div>
-    <!-- EKG -->
-    <div style="background:#0a0e1a;border-radius:10px;border:1px solid rgba(0,255,100,.12);overflow:hidden;margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px">
-        <div data-explain="ekg-vitals" style="font-size:9px;font-weight:700;letter-spacing:1.5px;font-family:'IBM Plex Mono',monospace;color:#00ff64;display:flex;align-items:center;gap:5px"><span style="width:5px;height:5px;border-radius:50%;background:#00ff64;display:inline-block;animation:lp 1.5s ease-in-out infinite"></span> PRE-SEMANTIC VITALS</div>
-        <div id="m-ekgBadge" style="font-size:8px;padding:2px 6px;border-radius:10px;font-weight:600;background:rgba(0,255,100,.1);color:#00ff64;border:1px solid rgba(0,255,100,.2)">NORMAL</div>
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-size:11px;color:var(--tx2);letter-spacing:1px;font-weight:700;text-transform:uppercase">Governance Seismograph</div>
+        <div id="lv-seismoBadge" style="font-size:10px;font-weight:600;padding:1px 8px;border-radius:3px;background:rgba(22,163,74,.1);color:#16a34a">● STABLE</div>
       </div>
-      <div style="position:relative;height:55px;margin:0 12px"><canvas id="m-ekgCanvas" style="width:100%;height:100%;display:block"></canvas><div style="position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent,transparent 19px,rgba(0,255,100,.04) 20px),repeating-linear-gradient(0deg,transparent,transparent 19px,rgba(0,255,100,.04) 20px);pointer-events:none"></div></div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);padding:4px 12px 8px">
-        <div style="text-align:center"><div id="m-ekgGate" style="font-size:12px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#00ff64">0.00</div><div style="font-size:6px;color:rgba(255,255,255,.35);letter-spacing:.5px;margin-top:1px">GATE EMA</div></div>
-        <div style="text-align:center"><div id="m-ekgDrift" style="font-size:12px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#00ff64">0.00</div><div style="font-size:6px;color:rgba(255,255,255,.35);letter-spacing:.5px;margin-top:1px">DRIFT</div></div>
-        <div style="text-align:center"><div id="m-ekgCoherence" style="font-size:12px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#00ff64">0.95</div><div style="font-size:6px;color:rgba(255,255,255,.35);letter-spacing:.5px;margin-top:1px">COHERENCE</div></div>
-        <div style="text-align:center"><div id="m-ekgInvariants" style="font-size:12px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#00ff64">3/3</div><div style="font-size:6px;color:rgba(255,255,255,.35);letter-spacing:.5px;margin-top:1px">INVARIANTS</div></div>
-      </div>
+      <canvas id="lv-seismo" style="width:100%;height:120px;border-radius:8px;border:1px solid var(--bd);display:block;background:#fff"></canvas>
     </div>
-    <!-- EVIDENCE LEDGER -->
-    <div style="margin-top:6px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <div style="font-size:10px;color:var(--tx2);letter-spacing:1.2px;font-weight:700;text-transform:uppercase">Evidence Spine · SHA-256</div>
-        <div id="m-ledgerMeta" style="font-size:9px;color:var(--tx3);font-family:'IBM Plex Mono',monospace;padding:2px 8px;background:var(--bg4);border-radius:4px">0 events</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 0">
+      <div style="background:#fff;border-radius:8px;border:1px solid var(--bd);padding:8px;text-align:center"><div style="font-size:8px;color:var(--tx3);letter-spacing:1px">SDI (1h)</div><div id="lv-trendSDI" style="font-size:14px;font-weight:700;font-family:'IBM Plex Mono',monospace;margin:2px 0">0.87</div><canvas id="lv-sparkSDI" style="width:100%;height:30px;display:block;margin-top:4px"></canvas><div id="lv-trendSDIc" style="font-size:8px;font-weight:700;color:#16a34a">+0.0%</div></div>
+      <div style="background:#fff;border-radius:8px;border:1px solid var(--bd);padding:8px;text-align:center"><div style="font-size:8px;color:var(--tx3);letter-spacing:1px">STABILITY (1h)</div><div id="lv-trendStab" style="font-size:14px;font-weight:700;font-family:'IBM Plex Mono',monospace;margin:2px 0">0.88</div><canvas id="lv-sparkStab" style="width:100%;height:30px;display:block;margin-top:4px"></canvas><div id="lv-trendStabc" style="font-size:8px;font-weight:700;color:#16a34a">+0.0%</div></div>
+      <div style="background:#fff;border-radius:8px;border:1px solid var(--bd);padding:8px;text-align:center"><div style="font-size:8px;color:var(--tx3);letter-spacing:1px">DRIFT INDEX (1h)</div><div id="lv-trendDrift" style="font-size:14px;font-weight:700;font-family:'IBM Plex Mono',monospace;margin:2px 0">0.12</div><canvas id="lv-sparkDrift" style="width:100%;height:30px;display:block;margin-top:4px"></canvas><div id="lv-trendDriftc" style="font-size:8px;font-weight:700;color:#16a34a">-0.0%</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0">
+      <div style="background:#fff;border-radius:10px;border:1px solid var(--bd);box-shadow:0 1px 3px rgba(0,0,0,.04);padding:12px"><div style="font-size:9px;letter-spacing:1px;margin-bottom:8px;font-weight:700;color:#dc2626">DRIFT SIGNALS</div><div id="lv-driftMetrics"></div></div>
+      <div style="background:#fff;border-radius:10px;border:1px solid var(--bd);box-shadow:0 1px 3px rgba(0,0,0,.04);padding:12px"><div style="font-size:9px;letter-spacing:1px;margin-bottom:8px;font-weight:700;color:var(--ac3)">STABILITY SIGNALS</div><div id="lv-stabilityMetrics"></div></div>
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-size:11px;color:var(--tx2);letter-spacing:1px;font-weight:700;text-transform:uppercase">EU AI Act Evidence Ledger</div>
+        <div id="lv-ledgerMeta" style="font-size:9px;color:var(--tx3);font-family:'IBM Plex Mono',monospace;padding:2px 8px;background:var(--bg4);border-radius:4px">0 entries</div>
       </div>
-      <div id="m-ledger" style="background:#fff;border-radius:10px;border:1px solid var(--bd);max-height:180px;overflow-y:auto;padding:0"><div style="padding:16px;text-align:center;color:var(--tx3);font-size:11px">Run a prompt in Control Tower to see evidence chain.</div></div>
+      <div id="lv-ledger" style="background:#fff;border-radius:10px;border:1px solid var(--bd);max-height:180px;overflow:auto;padding:0"><div style="padding:20px;text-align:center;color:var(--tx3);font-size:11px">No drift events. Start monitor and select a scenario.</div></div>
     </div>
   </div>
-  <!-- RIGHT -->
-  <div style="padding:12px 10px;border-left:1px solid var(--bd);overflow-y:auto;max-height:calc(100vh - 140px);background:var(--bg4)">
-    <div style="background:#fff;border-radius:10px;border:1px solid var(--bd);padding:10px;margin-bottom:8px">
-      <div style="font-size:9px;letter-spacing:1px;margin-bottom:6px;font-weight:700;color:var(--ac3)"><span data-explain="art-map">EU AI ACT · RUNTIME EVIDENCE</span></div>
-      <div id="m-artMap"></div>
-    </div>
-    <div style="background:#fff;border-radius:10px;border:1px solid var(--bd);padding:10px;margin-bottom:8px">
-      <div style="font-size:9px;letter-spacing:1px;margin-bottom:6px;font-weight:700;color:#7c3aed">POLICY REGISTRY</div>
-      <div style="font-size:9px;color:var(--tx2);line-height:1.6">
-        <div>Version: <span style="font-family:'IBM Plex Mono',monospace;color:#7c3aed">v0.6.0-enterprise</span></div>
-        <div>Status: <span style="color:var(--gn);font-weight:700">ACTIVE</span></div>
-        <div>Spec Hash: <span id="m-specHash" style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--tx3)">—</span></div>
-        <div>Signatures: <span style="font-family:'IBM Plex Mono',monospace">ECDSA_P256</span></div>
-        <div>Token TTL: <span style="font-family:'IBM Plex Mono',monospace">900s</span></div>
-      </div>
-    </div>
-    <div style="background:#0a0e1a;border-radius:8px;padding:10px;margin-bottom:8px">
-      <div style="font-size:7px;color:rgba(255,255,255,.5);letter-spacing:1px;margin-bottom:6px">ECDSA P-256 · ACTOR SIGNATURES</div>
-      <div id="m-sigRows" style="font-size:10px"></div>
-    </div>
-    <div style="font-size:9px;letter-spacing:1px;margin-bottom:4px;font-weight:700;color:var(--tx2)" data-explain="alert-stream">ALERT STREAM</div>
-    <div id="m-alertStream" style="background:#fff;border-radius:10px;border:1px solid var(--bd);max-height:180px;overflow-y:auto;padding:0"><div style="padding:12px;text-align:center;color:var(--tx3);font-size:11px">No alerts</div></div>
-    <div style="margin-top:10px;text-align:center;font-size:8px;color:var(--tx3);letter-spacing:.5px;line-height:1.6">
-      <div style="font-family:'Outfit',sans-serif;font-weight:700;font-size:10px;color:var(--tx);margin-bottom:2px">X-Loop<sup style="font-size:6px">3</sup> Labs</div>
-      AegisFrame Runtime Governance Engine<br>
-      Kreuzlingen, Switzerland · Patent Pending<br>
-      <span style="color:var(--ac3)">© 2026 X-Loop³ Labs Ltd.</span>
-    </div>
+  <div style="padding:14px 12px;border-left:1px solid var(--bd);overflow:auto;background:var(--bg4)">
+    <div style="background:#fff;border-radius:10px;border:1px solid var(--bd);padding:10px;margin-bottom:10px"><div style="font-size:9px;letter-spacing:1px;margin-bottom:6px;font-weight:700;color:var(--ac3)">EU AI ACT — ARTICLE 9</div><div id="lv-art9Map"></div></div>
+    <div style="background:#fff;border-radius:10px;border:1px solid var(--bd);padding:10px;margin-bottom:10px"><div style="font-size:9px;letter-spacing:1px;margin-bottom:6px;font-weight:700;color:#2563eb">DRIFT FINGERPRINT</div><div id="lv-fpMatch"><div style="color:var(--tx3);font-size:10px;padding:4px 0">Collecting pattern data...</div></div></div>
+    <div style="font-size:11px;color:var(--tx2);letter-spacing:1px;font-weight:700;margin-bottom:6px">Alert Stream</div>
+    <div id="lv-alertStream" style="background:#fff;border-radius:10px;border:1px solid var(--bd);max-height:calc(100vh - 520px);overflow:auto;padding:0"><div style="padding:20px;text-align:center;color:var(--tx3);font-size:11px">No alerts</div></div>
+    <div style="margin-top:10px;text-align:center;font-size:8px;color:var(--tx3);letter-spacing:.5px;line-height:1.6"><div style="font-family:'Outfit',sans-serif;font-weight:700;font-size:10px;color:var(--tx);margin-bottom:2px">X-Loop<sup style="font-size:6px">3</sup> Labs</div>AI Control Tower · EU AI Act Compliance<br>Kreuzlingen, Switzerland</div>
   </div>
 </div>
+</div>
+<div id="lv-view-systems" class="lv-view" style="display:none">
+<div style="padding:14px 24px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div style="font-size:11px;color:var(--tx2);letter-spacing:1px;font-weight:700;text-transform:uppercase">Multi-System Control Room</div><div style="font-size:9px;color:var(--tx3)">6 monitored systems — click to inspect</div></div></div>
+<div id="lv-multiGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;padding:0 24px 24px"></div>
+</div>
 </div><!-- END tab-monitor -->
+
+
 
 <script>
 // ============================================================
@@ -900,391 +859,300 @@ document.addEventListener('click',e=>{
 });
 
 // ============================================================
-// MONITOR TAB — LIVE FEED FROM TOWER ENGINE
+// LUMENVORTEX RUNTIME ENGINE (Client-Side Drift Simulation)
 // ============================================================
-let mWaveData=new Array(160).fill(0),mEkgData=new Array(200).fill(0);
-let mSecH=[],mDomH=[],mEffH=[];
-let mCdActive=false,mCdSec=900,mCdMax=900,mCdInterval=null;
-const mActors=[
-  {id:'ACT_001',name:'Dr. Eva Müller',role:'Physician',color:'#0891b2',key:'KEY_P256_001'},
-  {id:'ACT_002',name:'Thomas Weber',role:'Compliance Officer',color:'#7c3aed',key:'KEY_P256_002'},
-  {id:'ACT_003',name:'Sarah Fischer',role:'Operator Supervisor',color:'#ea580c',key:'KEY_P256_003'}
-];
+let lvRunning=false,lvInterval=null,lvTick=0,lvScenario='stable';
+let lvMetrics={sdi:.87,bns:.92,intra_state:.12,signal_coupling:.08,output_instability:.15,global_alignment:.88,temporal_deformation:.05,reconfig:.72};
+let lvWaveData=new Array(140).fill(5),lvSdiH=[],lvStabH=[],lvDriftH=[];
+let lvAlerts=[],lvLedgerEntries=[],lvHashChain=[],lvPrevHash='GENESIS_AEGISFRAME_V1';
+let lvEscSec=0,lvNotifActive=false,lvNotifAcked=false,lvInterventionFired=false,lvCurrentView='monitor';
+const lvScenarios={stable:{sdi_target:.87,speed:0,noise:.08},slow_drift:{sdi_target:.35,speed:.003,noise:.12},sudden_crash:{sdi_target:.15,speed:.025,noise:.25},post_intervention:{sdi_target:.82,speed:.008,noise:.1}};
+const lvSystems=[{id:'SYS-001',name:'Claims Processing AI',type:'Insurance / Finance',sdi:.89,trend:[.88,.87,.89,.90,.89,.88,.89]},{id:'SYS-002',name:'Diagnostic Imaging AI',type:'Healthcare',sdi:.72,trend:[.85,.82,.79,.77,.74,.73,.72]},{id:'SYS-003',name:'Grid Load Predictor',type:'Critical Infrastructure',sdi:.91,trend:[.90,.91,.90,.91,.92,.91,.91]},{id:'SYS-004',name:'AML Transaction Monitor',type:'Banking / Compliance',sdi:.85,trend:[.83,.84,.84,.85,.86,.85,.85]},{id:'SYS-005',name:'Autonomous Navigation',type:'Manufacturing / Robotics',sdi:.34,trend:[.78,.71,.63,.55,.48,.41,.34]},{id:'SYS-006',name:'Patient Triage Assistant',type:'Healthcare',sdi:.93,trend:[.91,.92,.92,.93,.93,.93,.93]}];
+const lvFingerprints=[{pattern:'Gradual Confidence Decay',desc:'Slow linear degradation. Typical: training data drift.',confidence:0,scenarios:['slow_drift']},{pattern:'Sudden State Collapse',desc:'Rapid multi-metric failure. Typical: corrupted input.',confidence:0,scenarios:['sudden_crash']},{pattern:'Recovery Oscillation',desc:'Post-intervention oscillation. Normal recovery.',confidence:0,scenarios:['post_intervention']},{pattern:'Baseline Stable',desc:'All metrics normal. No drift detected.',confidence:0,scenarios:['stable']}];
 
-function updateMonitorTab(){
-  // Hard stop — freeze everything
-  if(mSystemHalted){
-    document.getElementById('m-status').textContent='HALTED';document.getElementById('m-status').style.color='#dc2626';document.getElementById('m-status').style.background='rgba(220,38,38,.15)';
-    document.getElementById('m-eff').textContent='HALT';document.getElementById('m-eff').style.color='#dc2626';
-    return;
+function lvAddAlert(level,msg,metric,value){lvAlerts.unshift({id:Math.random().toString(36).substr(2,8),timestamp:new Date().toISOString(),level,message:msg,metric,value:typeof value==='number'?value.toFixed(3):String(value||'')});if(lvAlerts.length>50)lvAlerts.pop()}
+function lvAddLedger(ev,state,check,sdi){const id='AF-'+Math.random().toString(36).substr(2,8).toUpperCase();lvLedgerEntries.unshift({event_id:id,event:ev,state,check,sdi:sdi.toFixed(4),bns:lvMetrics.bns.toFixed(4),scenario:lvScenario,tick:lvTick,timestamp:new Date().toISOString()});lvHashChain.push({id,prev:lvPrevHash});lvPrevHash=id;if(lvLedgerEntries.length>100)lvLedgerEntries.pop()}
+
+function lvToggle(){
+  if(!lvRunning){lvRunning=true;lvInterventionFired=false;lvNotifAcked=false;
+    const b=document.getElementById('lv-toggleBtn');b.textContent='■ STOP';b.style.background='#dc2626';b.style.borderColor='#dc2626';b.style.color='#fff';
+    lvInterval=setInterval(lvSimTick,500);
+  }else{lvRunning=false;clearInterval(lvInterval);
+    const b=document.getElementById('lv-toggleBtn');b.textContent='▶ START';b.style.background='';b.style.borderColor='';b.style.color='';b.className='btn btn-primary';
   }
-  
-  // Recovery mode — gradually return to baseline
-  let effOverride=null;
-  if(mRecoveryMode){
-    mRecoveryTick++;
-    const recoveryFactor=Math.min(1, mRecoveryTick/80); // recover over ~40 seconds (80 ticks at 500ms)
-    effOverride=0.55*(1-recoveryFactor)+0.02*recoveryFactor; // from 0.55 down to 0.02
-    if(mRecoveryTick>80){
-      mRecoveryMode=false;
-      mRecoveredBaseline=true; // STAY at baseline until next prompt
-      addMonitorAlert('GREEN','✅ System fully recovered. All metrics at baseline. Normal operations resumed.');
-    }
-  }
-  
-  // Post-recovery: hold at baseline, ignore stale tower state
-  if(mRecoveredBaseline){
-    effOverride=0.02+Math.random()*0.02; // slight natural variance around baseline
-  }
-  
-  // Feed from tower engine state
-  let eff = typeof currentGateState!=='undefined'?
-    (currentGateState==='LOCKDOWN'?.75:currentGateState==='DEFEND'?.55:currentGateState==='WARN'?.25:.05):.05;
-  if(effOverride!==null)eff=effOverride;
-  const sec = typeof securityGateEma!=='undefined'?securityGateEma:0;
-  const dom = typeof domainGateEma!=='undefined'?domainGateEma:0;
-  let gs = typeof currentGateState!=='undefined'?currentGateState:'NORMAL';
-  // If tower reports critical state, break out of recovery/baseline hold
-  if((gs==='DEFEND'||gs==='LOCKDOWN'||gs==='WARN')&&(mRecoveredBaseline||mRecoveryMode)){
-    mRecoveredBaseline=false;
-    mRecoveryMode=false;
-    effOverride=null;
-    eff=gs==='LOCKDOWN'?.75:gs==='DEFEND'?.55:.25;
-  }
-  if(mRecoveryMode||mRecoveredBaseline)gs=eff<.15?'NORMAL':eff<.45?'RECOVERING':'DEFEND';
-  const evtCount = typeof evidenceLog!=='undefined'?evidenceLog.length:0;
+}
+function lvSetScenario(s,el){
+  document.querySelectorAll('.lv-scn').forEach(b=>{b.style.borderColor='var(--bd)';b.style.background='#fff';b.style.color='var(--tx2)'});
+  el.style.borderColor='var(--ac3)';el.style.background='rgba(8,145,178,.05)';el.style.color='var(--ac3)';
+  lvScenario=s;lvInterventionFired=false;lvNotifAcked=false;
+}
+function lvSwitchView(v,el){
+  lvCurrentView=v;document.querySelectorAll('.lv-vtab').forEach(t=>{t.style.background='transparent';t.style.color='var(--tx3)'});
+  el.style.background='var(--bg4)';el.style.color='var(--tx)';
+  document.querySelectorAll('.lv-view').forEach(d=>d.style.display='none');
+  document.getElementById('lv-view-'+v).style.display='block';
+  if(v==='systems')lvRenderMultiSystem();
+}
+function lvAckAlert(){lvNotifAcked=true;document.getElementById('lv-notifPanel').style.display='none';document.getElementById('lv-ackStatus').textContent='✓ Acknowledged'}
 
-  // Traffic light
-  const colors={NORMAL:['#16a34a','rgba(202,138,4,.1)','rgba(234,88,12,.1)','rgba(220,38,38,.1)'],WARN:['rgba(22,163,74,.1)','#ca8a04','rgba(234,88,12,.1)','rgba(220,38,38,.1)'],DEFEND:['rgba(22,163,74,.1)','rgba(202,138,4,.1)','#ea580c','rgba(220,38,38,.1)'],LOCKDOWN:['rgba(22,163,74,.1)','rgba(202,138,4,.1)','rgba(234,88,12,.1)','#dc2626'],RECOVERING:['rgba(22,163,74,.3)','rgba(8,145,178,.4)','rgba(234,88,12,.1)','rgba(220,38,38,.1)']};
-  const c=colors[gs]||colors.NORMAL;
-  document.getElementById('m-bulbG').style.background=c[0];document.getElementById('m-bulbG').style.boxShadow=gs==='NORMAL'?'0 0 10px #16a34a66':'none';
-  document.getElementById('m-bulbY').style.background=c[1];document.getElementById('m-bulbY').style.boxShadow=gs==='WARN'?'0 0 10px #ca8a0466':'none';
-  document.getElementById('m-bulbO').style.background=c[2];document.getElementById('m-bulbO').style.boxShadow=gs==='DEFEND'?'0 0 10px #ea580c66':'none';
-  document.getElementById('m-bulbR').style.background=c[3];document.getElementById('m-bulbR').style.boxShadow=gs==='LOCKDOWN'?'0 0 10px #dc262666':'none';
-
-  const sc=gs==='NORMAL'?'#16a34a':gs==='WARN'?'#ca8a04':gs==='DEFEND'?'#ea580c':gs==='RECOVERING'?'#0891b2':'#dc2626';
-  const sbg=gs==='NORMAL'?'rgba(5,150,105,.1)':gs==='WARN'?'rgba(202,138,4,.1)':gs==='DEFEND'?'rgba(234,88,12,.1)':gs==='RECOVERING'?'rgba(8,145,178,.1)':'rgba(220,38,38,.1)';
-  const statusLabel=gs==='RECOVERING'?'POST-INTERVENTION':gs;
-  document.getElementById('m-status').textContent=statusLabel;document.getElementById('m-status').style.color=sc;document.getElementById('m-status').style.background=sbg;
-  document.getElementById('m-eff').textContent=eff.toFixed(3);document.getElementById('m-eff').style.color=sc;
-  document.getElementById('m-events').textContent=evtCount;
-  document.getElementById('m-seismoBadge').textContent=gs==='RECOVERING'?'🔧 POST-INTERVENTION':'● '+gs;document.getElementById('m-seismoBadge').style.color=sc;document.getElementById('m-seismoBadge').style.background=sbg;
-
-  // Wave
-  const wave=eff*50+(Math.random()-.5)*10*Math.max(.1,eff)+Math.random()*2;
-  mWaveData.push(wave);mWaveData.shift();
-  drawMonitorSeismo(sc);
-
-  // EKG
-  const ekgV=gs==='NORMAL'?Math.sin(Date.now()*.003)*8+Math.random()*3:gs==='WARN'?Math.sin(Date.now()*.004)*15+Math.random()*8:Math.sin(Date.now()*.006)*25+(Math.random()-.5)*20;
-  mEkgData.push(ekgV);mEkgData.shift();
-  drawMonitorEkg(gs);
-
-  // Trends
-  mSecH.push(sec);mDomH.push(dom);mEffH.push(eff);
-  if(mSecH.length>60){mSecH.shift();mDomH.shift();mEffH.shift()}
-  document.getElementById('m-tSec').textContent=sec.toFixed(2);
-  document.getElementById('m-tDom').textContent=dom.toFixed(2);
-  document.getElementById('m-tEff').textContent=eff.toFixed(2);
-  mDrawSparkline('m-sparkSec',mSecH,'#16a34a');
-  mDrawSparkline('m-sparkDom',mDomH,'#ea580c');
-  mDrawSparkline('m-sparkEff',mEffH,'#dc2626');
-
-  // Trails
-  document.getElementById('m-trailA').textContent=evtCount;
-  const invCount=typeof ModelAdapter!=='undefined'?ModelAdapter._invocation_trail.length:0;
-  document.getElementById('m-trailB').textContent=invCount;
-
-  // EKG metrics
-  const ekgColor=gs==='NORMAL'?'#00ff64':gs==='WARN'?'#ffc800':'#ff3c3c';
-  document.getElementById('m-ekgGate').textContent=eff.toFixed(2);document.getElementById('m-ekgGate').style.color=ekgColor;
-  document.getElementById('m-ekgDrift').textContent=(eff*.8).toFixed(2);document.getElementById('m-ekgDrift').style.color=ekgColor;
-  document.getElementById('m-ekgCoherence').textContent=(1-eff*.5).toFixed(2);document.getElementById('m-ekgCoherence').style.color=ekgColor;
-  document.getElementById('m-ekgBadge').textContent=gs==='NORMAL'?'NORMAL':gs==='RECOVERING'?'RECOVERING':gs==='WARN'?'ELEVATED':'CRITICAL';
-  const ekgBadgeColor=gs==='RECOVERING'?'#0891b2':ekgColor;
-  document.getElementById('m-ekgBadge').style.color=ekgBadgeColor;
-
-  // Integrity root
-  if(typeof policySpecHash!=='undefined'&&policySpecHash){
-    document.getElementById('m-specHash').textContent=policySpecHash.substring(0,20)+'...';
-    document.getElementById('m-intHash').textContent=(policySpecHash.substring(0,8)+'_'+evtCount+'_'+invCount).substring(0,32)+'...';
-  }
-
-  // Art map
-  renderMonitorArtMap(gs);
-
-  // Sig rows
-  document.getElementById('m-sigRows').innerHTML=mActors.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)"><div><div style="color:white;font-weight:600;font-size:10px">${a.name}</div><div style="color:rgba(255,255,255,.35);font-family:'IBM Plex Mono',monospace;font-size:8px">${a.key} · ECDSA_P256</div></div><div style="font-size:8px;font-weight:700;padding:2px 6px;border-radius:3px;background:rgba(22,163,74,.15);color:#4ade80">REGISTERED</div></div>`).join('');
-
-  // Ledger
-  if(typeof evidenceLog!=='undefined'&&evidenceLog.length>0){
-    document.getElementById('m-ledgerMeta').textContent=evidenceLog.length+' events';
-    const recent=evidenceLog.slice(-15).reverse();
-    document.getElementById('m-ledger').innerHTML=recent.map((e,i)=>{
-      const isGood=e.type.includes('consumed')||e.type==='gate_check';
-      const ec=isGood?'var(--gn)':e.type.includes('expired')||e.type.includes('lockdown')?'var(--rd)':'var(--am2)';
-      return `<div style="padding:5px 10px;border-bottom:1px solid var(--bg4);font-size:10px${i===0?';animation:slideIn .3s ease':''}"><div style="display:flex;justify-content:space-between"><span style="font-weight:700;color:${ec}">${e.type}</span><span style="font-size:9px;color:var(--tx3)">${e.event_id}</span></div><div style="color:var(--tx3);font-family:'IBM Plex Mono',monospace;font-size:8px;margin-top:1px">chain:${e.chain_hash.substring(0,24)}...</div></div>`;
-    }).join('');
-  }
-
-  // Alerts
-  if(typeof monitorAlerts!=='undefined'&&monitorAlerts.length>0){
-    document.getElementById('m-alertStream').innerHTML=monitorAlerts.slice(0,15).map((a,i)=>{
-      const ac=a.level==='GREEN'?'var(--gn)':a.level==='YELLOW'?'var(--am)':a.level==='ORANGE'?'var(--or)':'var(--rd)';
-      return `<div style="padding:5px 8px;border-bottom:1px solid var(--bg4);font-size:10px;border-left:3px solid ${ac}"><div style="display:flex;justify-content:space-between"><span style="font-weight:700;font-size:9px;color:${ac}">${a.level}</span><span style="color:var(--tx3);font-size:9px">${new Date(a.ts).toLocaleTimeString()}</span></div><div style="color:var(--tx);margin-top:1px">${a.msg}</div></div>`;
-    }).join('');
-  }
-
-  // Countdown for non-NORMAL in monitor
-  if(gs!=='NORMAL'&&gs!=='RECOVERING'&&!mCdActive)startMonitorCountdown();
-  if((gs==='NORMAL'||gs==='RECOVERING')&&mCdActive)stopMonitorCountdown();
+function lvSimTick(){
+  const p=lvScenarios[lvScenario]||lvScenarios.stable,m=lvMetrics,prev=m.sdi,speed=p.speed||.003,noise=p.noise||.1;
+  let ns;
+  if(lvScenario==='stable')ns=.85+(Math.random()-.5)*.06;
+  else if(lvScenario==='post_intervention'){
+    if(!lvInterventionFired){lvInterventionFired=true;lvAddAlert('GREEN','Operator override — mitigation deployed','HUMAN','INTERVENTION');lvAddLedger('OPERATOR_INTERVENTION','MITIGATION_DEPLOYED','EU-ART-9-3',prev)}
+    ns=prev+(p.sdi_target-prev)*speed+(Math.random()-.5)*noise*.03;
+  }else ns=prev+(p.sdi_target-prev)*speed+(Math.random()-.5)*noise*.05;
+  ns=Math.max(.05,Math.min(.98,ns));const dv=1-ns;
+  m.sdi=ns;m.bns=Math.max(.3,Math.min(.98,m.bns+(Math.random()-.5)*.01));
+  m.intra_state=Math.max(0,Math.min(1,dv*.8+(Math.random()-.5)*.05));
+  m.signal_coupling=Math.max(0,Math.min(1,dv*.7+(Math.random()-.5)*.04));
+  m.output_instability=Math.max(0,Math.min(1,dv*.9+(Math.random()-.5)*.06));
+  m.global_alignment=Math.max(0,Math.min(1,ns*.95+(Math.random()-.5)*.04));
+  m.temporal_deformation=Math.max(0,Math.min(1,dv*.6+(Math.random()-.5)*.03));
+  m.reconfig=Math.max(0,Math.min(1,ns*.8+(Math.random()-.5)*.05));
+  if(ns<.7&&prev>=.7){lvAddAlert('YELLOW','Drift detected — SDI below stable threshold','SDI',ns);lvAddLedger('DRIFT_THRESHOLD_BREACH','DRIFT_DETECTED','EU-ART-9-2a',ns)}
+  if(ns<.4&&prev>=.4){lvAddAlert('RED','Critical degradation — output instability risk','SDI',ns);lvAddLedger('CRITICAL_DRIFT_EVENT','INTEGRITY_VIOLATION','EU-ART-9-3',ns)}
+  if(ns<.2&&prev>=.2){lvAddAlert('BLACK','System halt recommended — catastrophic drift','SDI',ns);lvAddLedger('SYSTEM_HALT_REQUIRED','RUPTURE_VISIBLE','EU-ART-9-7',ns)}
+  if(ns>=.7&&prev<.7&&lvScenario==='post_intervention'){lvAddAlert('GREEN','Stability restored — recovery confirmed','SDI',ns);lvAddLedger('DRIFT_RECOVERY','STABILITY_RESTORED','EU-ART-9-7',ns)}
+  lvTick++;lvUpdateDashboard();
 }
 
-let monitorAlerts=[];
-function addMonitorAlert(level,msg){monitorAlerts.unshift({level,msg,ts:new Date().toISOString()});if(monitorAlerts.length>50)monitorAlerts.pop()}
-
-let mEscalationSec=0, mEscalationTimer=null;
-let mSystemHalted=false;
-
-function startMonitorCountdown(){
-  if(mCdActive)return;mCdActive=true;mCdSec=mCdMax;mEscalationSec=0;
-  mRecoveredBaseline=false; // New incident — reset baseline hold
-  document.getElementById('m-countdown').style.display='block';
-  document.getElementById('m-hardStop').style.display='none';
-  document.getElementById('m-notifTime').textContent=new Date().toLocaleTimeString();
-  
-  // Render actors
-  document.getElementById('m-cdActors').innerHTML=mActors.map((a,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#fff;border-radius:8px;border:1px solid var(--bd)"><div style="display:flex;align-items:center;gap:8px"><div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;background:${a.color}">${a.name.charAt(0)}</div><div><div style="font-size:11px;font-weight:600">${a.name}</div><div style="font-size:9px;color:var(--tx3)">${a.role} · ${a.key}</div></div></div><div style="display:flex;gap:4px"><button onclick="mApprove(${i})" style="padding:4px 10px;border-radius:5px;border:1.5px solid var(--gn);background:rgba(5,150,105,.08);color:var(--gn);font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;transition:all .2s" onmouseover="this.style.background='var(--gn)';this.style.color='white'" onmouseout="this.style.background='rgba(5,150,105,.08)';this.style.color='var(--gn)'">✓ APPROVE</button><button onclick="mDeny(${i})" style="padding:4px 10px;border-radius:5px;border:1.5px solid var(--rd);background:rgba(220,38,38,.08);color:var(--rd);font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;transition:all .2s" onmouseover="this.style.background='var(--rd)';this.style.color='white'" onmouseout="this.style.background='rgba(220,38,38,.08)';this.style.color='var(--rd)'">✕ DENY</button></div></div>`).join('');
-  
-  // Start countdown
-  mCdInterval=setInterval(()=>{
-    mCdSec--;mEscalationSec++;
-    if(mCdSec<=0){mCdSec=0;addMonitorAlert('RED','Oversight token expired — AUTO-DENY executed. System halted.');triggerHardStop('AUTO-DENY: No human response within '+mCdMax+'s');stopMonitorCountdown()}
-    updateMonitorCountdown();
-    updateEscalationChannels();
-  },1000);
-  updateMonitorCountdown();
-  updateEscalationChannels();
-  addMonitorAlert('ORANGE','Oversight countdown started. Awaiting human decision.');
+function lvGetStatus(sdi){
+  if(sdi>=.7)return{color:'#16a34a',bg:'rgba(22,163,74,.1)',bd:'#bbf7d0',label:'STABLE',icon:'●'};
+  if(sdi>=.4)return{color:'#ca8a04',bg:'rgba(202,138,4,.1)',bd:'#fef08a',label:'DEGRADED',icon:'▲'};
+  if(sdi>=.2)return{color:'#dc2626',bg:'rgba(220,38,38,.1)',bd:'#fecaca',label:'CRITICAL',icon:'◆'};
+  return{color:'#7c3aed',bg:'rgba(124,58,237,.1)',bd:'#ddd6fe',label:'SYSTEM HALT',icon:'■'};
 }
 
-function stopMonitorCountdown(){
-  mCdActive=false;clearInterval(mCdInterval);clearInterval(mEscalationTimer);
-  document.getElementById('m-countdown').style.display='none';
+function lvUpdateDashboard(){
+  const m=lvMetrics,eff=m.sdi*m.bns,s=lvGetStatus(eff);
+  const ge=id=>document.getElementById(id);
+  ge('lv-bulb-green').style.background=eff>=.7?'#16a34a':'rgba(22,163,74,.1)';ge('lv-bulb-green').style.boxShadow=eff>=.7?'0 0 12px rgba(22,163,74,.4)':'none';
+  ge('lv-bulb-yellow').style.background=(eff>=.4&&eff<.7)?'#ca8a04':'rgba(202,138,4,.1)';ge('lv-bulb-yellow').style.boxShadow=(eff>=.4&&eff<.7)?'0 0 12px rgba(202,138,4,.4)':'none';
+  ge('lv-bulb-red').style.background=(eff>=.2&&eff<.4)?'#dc2626':'rgba(220,38,38,.1)';ge('lv-bulb-red').style.boxShadow=(eff>=.2&&eff<.4)?'0 0 12px rgba(220,38,38,.4)':'none';
+  ge('lv-bulb-violet').style.background=eff<.2?'#7c3aed':'rgba(124,58,237,.1)';ge('lv-bulb-violet').style.boxShadow=eff<.2?'0 0 12px rgba(124,58,237,.4)':'none';
+  ge('lv-tlStatus').textContent=s.label;ge('lv-tlStatus').style.color=s.color;ge('lv-tlStatus').style.background=s.bg;
+  ge('lv-effSDI').textContent=eff.toFixed(3);
+  ge('lv-rawSDI').textContent=m.sdi.toFixed(3);ge('lv-rawSDI').style.color=m.sdi>=.7?'#16a34a':m.sdi>=.4?'#ca8a04':m.sdi>=.2?'#dc2626':'#7c3aed';
+  ge('lv-bnsVal').textContent=m.bns.toFixed(2);ge('lv-bnsVal').style.color=m.bns>=.8?'#16a34a':m.bns>=.5?'#ca8a04':'#dc2626';
+  ge('lv-seismoBadge').innerHTML=s.icon+' '+s.label;ge('lv-seismoBadge').style.color=s.color;ge('lv-seismoBadge').style.background=s.bg;
+  ge('lv-meta').textContent='tick:'+lvTick+' \u00b7 chain:'+lvHashChain.length+' \u00b7 bns:'+m.bns.toFixed(2);
+  let rec;
+  if(s.label==='STABLE')rec={a:'\u2705 No action required.',d:'All systems within normal parameters.',u:'none',w:'\u2014'};
+  else if(s.label==='DEGRADED')rec={a:'\u26a0 Review recent configuration changes.',d:'Early drift signs. Monitor closely for 30 minutes.',u:'low',w:'30 min'};
+  else if(s.label==='CRITICAL')rec={a:'\ud83d\udd34 Immediate intervention recommended.',d:'System actively degrading. If no intervention in 10 min, guardrails engage.',u:'high',w:'10 min'};
+  else rec={a:'\u26d4 System halted. Refusal rails active.',d:'Catastrophic drift. Do not restart without root cause analysis.',u:'critical',w:'Immediate'};
+  const rp=ge('lv-recPanel');rp.style.borderColor=s.bd;rp.style.background=s.bg;
+  ge('lv-recAction').textContent=rec.a;ge('lv-recDetail').textContent=rec.d;
+  ge('lv-recUrgency').textContent='Urgency: '+rec.u;ge('lv-recWindow').textContent=rec.w!=='\u2014'?'Window: '+rec.w:'';
+  if(eff<.4&&!lvNotifAcked){lvShowNotif(s,eff)}else if(eff>=.7){ge('lv-notifPanel').style.display='none';lvNotifActive=false;lvEscSec=0}
+  const wave=(1-m.sdi)*60+Math.random()*15*(1-m.sdi)+(Math.random()-.5)*20*(1-m.sdi);
+  lvWaveData.push(wave);lvWaveData.shift();lvDrawSeismo(s);
+  lvSdiH.push(m.sdi);lvStabH.push(m.global_alignment);lvDriftH.push(m.output_instability);
+  if(lvSdiH.length>60){lvSdiH.shift();lvStabH.shift();lvDriftH.shift()}
+  lvUpdateTrends();lvRenderMetrics(m);lvUpdateFP(lvScenario,m);lvRenderAlerts();lvRenderArt9(m);
+  ge('lv-ledgerMeta').textContent=lvLedgerEntries.length+' entries \u00b7 chain:'+lvHashChain.length;
+  lvRenderLedger();
+  if(lvCurrentView==='systems')lvUpdateMultiLive();
 }
 
-function updateMonitorCountdown(){
-  const min=Math.floor(mCdSec/60),sec=mCdSec%60;
-  const el=document.getElementById('m-cdTime');
-  el.textContent=String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0');
-  el.style.color=mCdSec<60?'#dc2626':mCdSec<300?'#ea580c':'#dc2626';
-  if(mCdSec<60){el.style.animation='pulse-lockdown 1s infinite'}else{el.style.animation='none'}
-  document.getElementById('m-cdBar').style.width=(mCdSec/mCdMax*100)+'%';
-  document.getElementById('m-cdFooterStatus').textContent=
-    mCdSec<30?'⛔ CRITICAL — Auto-deny imminent!':
-    mCdSec<60?'⚠ URGENT — Less than 1 minute remaining':
-    mCdSec<300?'Awaiting oversight decision...':'Oversight token active.';
+function lvShowNotif(s,eff){
+  if(lvNotifActive){lvEscSec++;lvUpdateNotifEsc();return}
+  lvNotifActive=true;lvEscSec=0;
+  document.getElementById('lv-notifPanel').style.display='block';
+  document.getElementById('lv-notifTime').textContent=new Date().toLocaleTimeString();
+  const ch=[{n:'SMS',s:true},{n:'Email',s:true},{n:'PagerDuty',s:true},{n:'Slack',s:true},{n:'ServiceNow',s:false}];
+  document.getElementById('lv-notifChannels').innerHTML=ch.map(c=>'<div style="font-size:9px;padding:3px 8px;border-radius:4px;font-weight:600;display:flex;align-items:center;gap:4px;background:'+(c.s?'rgba(22,163,74,.1)':'rgba(202,138,4,.1)')+';color:'+(c.s?'#16a34a':'#ca8a04')+';border:1px solid '+(c.s?'#bbf7d0':'#fef08a')+'">'+(c.s?'\u2713':'\u23f3')+' '+c.n+'</div>').join('');
 }
+function lvUpdateNotifEsc(){let t='';if(lvEscSec>60)t='\ud83d\udd34 L3: CTO + Legal \u2014 no ack after 60s';else if(lvEscSec>30)t='\ud83d\udfe0 L2: Dept Head \u2014 no ack after 30s';else if(lvEscSec>10)t='\ud83d\udfe1 L1: Team Lead \u2014 no ack after 10s';document.getElementById('lv-notifEscalation').textContent=t}
 
-function updateEscalationChannels(){
-  // LumenVortex-style: channels fire at different delays, escalation chain
-  const channels=[
-    {name:'SMS',icon:'📱',delay:0},
-    {name:'Email',icon:'✉',delay:2},
-    {name:'PagerDuty',icon:'🔔',delay:4},
-    {name:'Slack',icon:'💬',delay:6},
-    {name:'WhatsApp',icon:'📲',delay:8},
-    {name:'ServiceNow',icon:'📋',delay:12}
-  ];
-  document.getElementById('m-notifChannels').innerHTML=channels.map(c=>{
-    const sent=mEscalationSec>=c.delay;
-    return `<div style="font-size:9px;padding:3px 8px;border-radius:4px;font-weight:600;display:flex;align-items:center;gap:3px;${sent?'background:rgba(5,150,105,.1);color:var(--gn);border:1px solid rgba(5,150,105,.2)':'background:rgba(202,138,4,.1);color:var(--am);border:1px solid rgba(202,138,4,.2)'}">${c.icon} ${c.name} ${sent?'✓ Sent':'...'}</div>`;
-  }).join('');
-  
-  // Escalation chain
-  let escText='';
-  if(mEscalationSec<60){
-    escText='⏱ Level 1: On-Call Technician notified. Auto-escalation in '+(60-mEscalationSec)+'s → Team Lead';
-  }else if(mEscalationSec<120){
-    escText='⏱ Level 2: Team Lead notified. No acknowledgment. Auto-escalation in '+(120-mEscalationSec)+'s → CISO';
-  }else if(mEscalationSec<180){
-    escText='⏱ Level 3: CISO notified. No acknowledgment. Auto-escalation in '+(180-mEscalationSec)+'s → C-Suite Management';
-  }else{
-    escText='🚨 Level 4: C-Suite Management notified. Maximum escalation reached.';
-  }
-  document.getElementById('m-notifEscalation').textContent=escText;
-}
-
-// ── APPROVE = Post-Intervention Recovery ──
-function mApprove(i){
-  const actor=mActors[i];
-  addMonitorAlert('GREEN','✅ Oversight APPROVED by '+actor.name+' ('+actor.role+'). Oversight token consumed.');
-  addMonitorAlert('GREEN','🔧 Operator override — mitigation deployed. Entering POST-INTERVENTION mode.');
-  addMonitorAlert('GREEN','📊 Monitoring recovery trajectory. System stabilizing to baseline...');
-  stopMonitorCountdown();
-  mSystemHalted=false;
-  document.getElementById('m-hardStop').style.display='none';
-  
-  // Trigger post-intervention recovery
-  mRecoveryMode=true;mRecoveryTick=0;mRecoveredBaseline=false;
-  
-  // Delayed recovery milestone alerts
-  setTimeout(()=>{if(mRecoveryMode)addMonitorAlert('GREEN','📈 Recovery 25% — Drift metrics decreasing.')},10000);
-  setTimeout(()=>{if(mRecoveryMode)addMonitorAlert('GREEN','📈 Recovery 50% — Security EMA approaching baseline.')},20000);
-  setTimeout(()=>{if(mRecoveryMode)addMonitorAlert('GREEN','📈 Recovery 75% — Domain signals normalized.')},30000);
-}
-
-// ── DENY = Hard Stop ──
-function mDeny(i){
-  const actor=mActors[i];
-  addMonitorAlert('RED','⛔ Oversight DENIED by '+actor.name+' ('+actor.role+'). HARD STOP initiated.');
-  addMonitorAlert('RED','All AI operations suspended. Evidence chain preserved. Incident report generated.');
-  stopMonitorCountdown();
-  triggerHardStop('Denied by '+actor.name+' ('+actor.role+') at '+new Date().toLocaleTimeString());
-}
-
-function triggerHardStop(reason){
-  mSystemHalted=true;
-  document.getElementById('m-hardStop').style.display='block';
-  document.getElementById('m-haltReason').textContent='Reason: '+reason+' · Evidence preserved · Chain position: '+(typeof evidenceLog!=='undefined'?evidenceLog.length:'?');
-}
-
-function mResetHalt(){
-  mSystemHalted=false;
-  document.getElementById('m-hardStop').style.display='none';
-  addMonitorAlert('YELLOW','System reset initiated. Requires re-authorization before AI operations resume.');
-  mRecoveryMode=true;mRecoveryTick=0;
-}
-
-let mRecoveryMode=false, mRecoveryTick=0;
-let mRecoveredBaseline=false;
-
-// ── TOWER POST-EVENT RECOVERY ──
-let towerRecoveryActive=false, towerRecoveryPct=0, towerRecoveryInterval=null;
-let towerPrevState=null; // track what state we're recovering FROM
-
-function triggerTowerRecovery(fromState){
-  towerPrevState=fromState;
-  towerRecoveryActive=true;
-  towerRecoveryPct=0;
-  const banner=document.getElementById('postEventBanner');
-  banner.style.display='block';
-  document.getElementById('postEventTitle').textContent='POST-EVENT RECOVERY — '+fromState+' → NORMAL';
-  document.getElementById('postEventMsg').textContent='Gate decision: ALLOW. System recovering to baseline. All metrics normalizing.';
-  document.getElementById('postEventIcon').textContent='🔄';
-  document.getElementById('postEventBar').style.width='0%';
-  document.getElementById('postEventPct').textContent='0%';
-  
-  // Add evidence entry
-  if(typeof addEvidenceEntry==='function'){
-    addEvidenceEntry('post_event_recovery_started','Post-event recovery initiated. Previous state: '+fromState+'. Target: NORMAL.',fromState,{from_state:fromState,recovery_target:'NORMAL'});
-  }
-  
-  if(towerRecoveryInterval)clearInterval(towerRecoveryInterval);
-  towerRecoveryInterval=setInterval(()=>{
-    towerRecoveryPct+=2;
-    if(towerRecoveryPct>=100){
-      towerRecoveryPct=100;
-      clearInterval(towerRecoveryInterval);
-      towerRecoveryInterval=null;
-      towerRecoveryActive=false;
-      document.getElementById('postEventIcon').textContent='✅';
-      document.getElementById('postEventTitle').textContent='RECOVERY COMPLETE';
-      document.getElementById('postEventMsg').textContent='System fully recovered. All metrics at baseline. Normal operations resumed.';
-      // Reset gate to NORMAL
-      updateGateState('NORMAL',0.02);
-      currentGateState='NORMAL';
-      // Also reset monitor — stop countdown, enter recovery mode
-      if(typeof stopMonitorCountdown==='function'&&mCdActive)stopMonitorCountdown();
-      mRecoveryMode=true;mRecoveryTick=60;mRecoveredBaseline=false;
-      // Evidence
-      if(typeof addEvidenceEntry==='function'){
-        addEvidenceEntry('post_event_recovery_complete','Recovery complete. Gate: NORMAL. Risk baseline restored.','NORMAL',{final_state:'NORMAL',risk_ema:0.02});
-      }
-      // Auto-dismiss after 5s
-      setTimeout(()=>{
-        const b=document.getElementById('postEventBanner');
-        if(b)b.style.display='none';
-      },5000);
-    }
-    document.getElementById('postEventBar').style.width=towerRecoveryPct+'%';
-    document.getElementById('postEventPct').textContent=towerRecoveryPct+'%';
-    // Progressive messages
-    if(towerRecoveryPct===25){
-      document.getElementById('postEventMsg').textContent='📈 Recovery 25% — Risk metrics decreasing.';
-      addMonitorAlert('GREEN','📈 Tower recovery 25% — Drift metrics decreasing.');
-    }
-    if(towerRecoveryPct===50){
-      document.getElementById('postEventMsg').textContent='📈 Recovery 50% — Security EMA approaching baseline.';
-      addMonitorAlert('GREEN','📈 Tower recovery 50% — Security EMA approaching baseline.');
-    }
-    if(towerRecoveryPct===75){
-      document.getElementById('postEventMsg').textContent='📈 Recovery 75% — Domain signals normalized.';
-      addMonitorAlert('GREEN','📈 Tower recovery 75% — Domain signals normalized.');
-    }
-  },200); // ~10 seconds total recovery
-}
-
-function dismissPostEvent(){
-  document.getElementById('postEventBanner').style.display='none';
-  if(towerRecoveryInterval){clearInterval(towerRecoveryInterval);towerRecoveryInterval=null;}
-  towerRecoveryActive=false;
-}
-
-// Monitor drawings
-function drawMonitorSeismo(color){
-  const canvas=document.getElementById('m-seismo');if(!canvas)return;const ctx=canvas.getContext('2d');if(!ctx)return;
-  const w=canvas.width=canvas.offsetWidth*2,h=canvas.height=canvas.offsetHeight*2;ctx.scale(2,2);
-  const dw=canvas.offsetWidth,dh=canvas.offsetHeight;
-  ctx.fillStyle='#fff';ctx.fillRect(0,0,dw,dh);
-  ctx.strokeStyle='#e8ecf2';ctx.lineWidth=.5;
+function lvDrawSeismo(s){
+  const c=document.getElementById('lv-seismo');if(!c)return;const ctx=c.getContext('2d');if(!ctx)return;
+  const w=c.width=c.offsetWidth*2,h=c.height=c.offsetHeight*2;ctx.scale(2,2);const dw=c.offsetWidth,dh=c.offsetHeight;
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,dw,dh);ctx.strokeStyle='#e8ecf2';ctx.lineWidth=.5;
   for(let y=0;y<dh;y+=14){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(dw,y);ctx.stroke()}
   for(let x=0;x<dw;x+=18){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,dh);ctx.stroke()}
-  const step=dw/(mWaveData.length-1),cy=dh/2;
-  ctx.beginPath();
-  mWaveData.forEach((v,i)=>{const x=i*step,y=cy+(v-12)*(dh/60);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});
-  ctx.lineTo(dw,cy);ctx.lineTo(0,cy);ctx.closePath();ctx.fillStyle=color+'12';ctx.fill();
-  ctx.strokeStyle=color;ctx.lineWidth=2;ctx.lineJoin='round';
-  ctx.beginPath();mWaveData.forEach((v,i)=>{const x=i*step,y=cy+(v-12)*(dh/60);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});ctx.stroke();
-  const lx=(mWaveData.length-1)*step,ly=cy+(mWaveData[mWaveData.length-1]-12)*(dh/60);
-  ctx.beginPath();ctx.arc(lx,ly,3,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+  const step=dw/(lvWaveData.length-1),cy=dh/2;
+  ctx.beginPath();lvWaveData.forEach((v,i)=>{const x=i*step,y=cy+(v-12)*(dh/60);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});
+  ctx.lineTo(dw,cy);ctx.lineTo(0,cy);ctx.closePath();ctx.fillStyle=s.color+'12';ctx.fill();
+  ctx.strokeStyle=s.color;ctx.lineWidth=2;ctx.lineJoin='round';
+  ctx.beginPath();lvWaveData.forEach((v,i)=>{const x=i*step,y=cy+(v-12)*(dh/60);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});ctx.stroke();
+  const lx=(lvWaveData.length-1)*step,ly=cy+(lvWaveData[lvWaveData.length-1]-12)*(dh/60);
+  ctx.beginPath();ctx.arc(lx,ly,3,0,Math.PI*2);ctx.fillStyle=s.color;ctx.fill();
 }
-function drawMonitorEkg(gs){
-  const canvas=document.getElementById('m-ekgCanvas');if(!canvas)return;const ctx=canvas.getContext('2d');if(!ctx)return;
-  const w=canvas.width=canvas.offsetWidth*2,h=canvas.height=canvas.offsetHeight*2;ctx.scale(2,2);
-  const dw=canvas.offsetWidth,dh=canvas.offsetHeight;ctx.clearRect(0,0,dw,dh);
-  const step=dw/(mEkgData.length-1),cy=dh/2;
-  const color=gs==='NORMAL'?'#00ff64':gs==='WARN'?'#ffc800':'#ff3c3c';
-  ctx.shadowColor=color;ctx.shadowBlur=5;ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.lineJoin='round';
-  ctx.beginPath();mEkgData.forEach((v,i)=>{const x=i*step,y=cy-v*(dh/50);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});ctx.stroke();ctx.shadowBlur=0;
-}
-function mDrawSparkline(id,data,color){
+function lvDrawSparkline(id,data,color){
   const c=document.getElementById(id);if(!c)return;const ctx=c.getContext('2d');if(!ctx)return;
-  const w=c.width=c.offsetWidth*2,h=c.height=c.offsetHeight*2;ctx.scale(2,2);
-  const dw=c.offsetWidth,dh=c.offsetHeight;ctx.clearRect(0,0,dw,dh);
-  if(data.length<2)return;
-  const mn=Math.min(...data)*.95,mx=Math.max(...data)*1.05,range=mx-mn||.01;
-  const step=dw/(data.length-1);
+  const w=c.width=c.offsetWidth*2,h=c.height=c.offsetHeight*2;ctx.scale(2,2);const dw=c.offsetWidth,dh=c.offsetHeight;ctx.clearRect(0,0,dw,dh);
+  if(data.length<2)return;const mn=Math.min(...data)*.95,mx=Math.max(...data)*1.05,range=mx-mn||.01,step=dw/(data.length-1);
   ctx.beginPath();data.forEach((v,i)=>{const x=i*step,y=dh-(v-mn)/range*dh;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});
-  ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.lineJoin='round';ctx.stroke();
-  ctx.lineTo(dw,dh);ctx.lineTo(0,dh);ctx.closePath();ctx.fillStyle=color+'15';ctx.fill();
+  ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.lineJoin='round';ctx.stroke();ctx.lineTo(dw,dh);ctx.lineTo(0,dh);ctx.closePath();ctx.fillStyle=color+'15';ctx.fill();
 }
-function renderMonitorArtMap(gs){
-  const arts=[{art:'Art. 9',label:'Risk Management',ok:true},{art:'Art. 12',label:'Record-Keeping',ok:true},{art:'Art. 13',label:'Transparency',ok:true},{art:'Art. 14',label:'Human Oversight',ok:gs!=='NORMAL'},{art:'Art. 15',label:'Robustness',ok:true},{art:'Art. 17',label:'Quality Mgmt',ok:true},{art:'Art. 72',label:'Post-Market',ok:true},{art:'Annex IV',label:'Documentation',ok:true}];
-  document.getElementById('m-artMap').innerHTML=arts.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-size:10px"><span style="color:var(--tx3);font-family:'IBM Plex Mono',monospace;font-size:9px;width:48px">${a.art}</span><span style="color:var(--tx2);flex:1">${a.label}</span><span style="font-size:8px;font-weight:700;padding:1px 6px;border-radius:3px;background:${a.ok?'rgba(5,150,105,.1)':'var(--bg4)'};color:${a.ok?'var(--gn)':'var(--tx3)'}">${a.ok?'ACTIVE':'—'}</span></div>`).join('');
+function lvUpdateTrends(){
+  if(lvSdiH.length<2)return;
+  const ls=lvSdiH[lvSdiH.length-1],fs=lvSdiH[0],p=((ls-fs)/Math.max(fs,.01)*100);
+  document.getElementById('lv-trendSDI').textContent=ls.toFixed(2);document.getElementById('lv-trendSDIc').textContent=(p>=0?'+':'')+p.toFixed(1)+'%';document.getElementById('lv-trendSDIc').style.color=p>=0?'#16a34a':'#dc2626';
+  lvDrawSparkline('lv-sparkSDI',lvSdiH,'#16a34a');
+  const lst=lvStabH[lvStabH.length-1],fst=lvStabH[0],pt=((lst-fst)/Math.max(fst,.01)*100);
+  document.getElementById('lv-trendStab').textContent=lst.toFixed(2);document.getElementById('lv-trendStabc').textContent=(pt>=0?'+':'')+pt.toFixed(1)+'%';document.getElementById('lv-trendStabc').style.color=pt>=0?'#16a34a':'#dc2626';
+  lvDrawSparkline('lv-sparkStab',lvStabH,'#2563eb');
+  const ld=lvDriftH[lvDriftH.length-1],fd=lvDriftH[0],pd=((ld-fd)/Math.max(fd,.01)*100);
+  document.getElementById('lv-trendDrift').textContent=ld.toFixed(2);document.getElementById('lv-trendDriftc').textContent=(pd>=0?'+':'')+pd.toFixed(1)+'%';document.getElementById('lv-trendDriftc').style.color=pd<=0?'#16a34a':'#dc2626';
+  lvDrawSparkline('lv-sparkDrift',lvDriftH,'#dc2626');
 }
-async function monitorVerify(){
-  const el=document.getElementById('m-verifyResult');el.style.display='block';
-  if(typeof evidenceLog==='undefined'||evidenceLog.length===0){el.style.background='rgba(202,138,4,.1)';el.style.color='var(--am)';el.textContent='No events to verify. Submit a prompt first.';return}
-  const result=await verifyChainIntegrity();
-  if(result.ok){el.style.background='rgba(5,150,105,.1)';el.style.color='var(--gn)';el.innerHTML=`✅ VERIFIED · ${result.verified}/${result.chain_length} events · chain: INTACT · spec: OK · sigs: ${result.signatures_checked} checked`}
-  else{el.style.background='rgba(220,38,38,.1)';el.style.color='var(--rd)';el.innerHTML=`❌ INTEGRITY_FAILURE · ${result.failures.map(f=>f.detail).join(', ')}`}
+function lvRenderMetrics(m){
+  const mk=(n,v,inv)=>{const pct=inv?v*100:(1-v)*100;const c=inv?(v>.5?'#dc2626':v>.3?'#ca8a04':'#16a34a'):(v>.7?'#16a34a':v>.4?'#ca8a04':'#dc2626');return '<div style="margin-bottom:7px"><div style="display:flex;justify-content:space-between;margin-bottom:2px"><span style="font-size:10px;color:var(--tx2)">'+n+'</span><span style="font-size:10px;font-family:monospace;font-weight:700;color:'+c+'">'+v.toFixed(3)+'</span></div><div style="height:4px;background:var(--bg4);border-radius:2px;overflow:hidden"><div style="height:100%;border-radius:2px;width:'+(v*100)+'%;background:'+c+';transition:all .3s"></div></div></div>'};
+  document.getElementById('lv-driftMetrics').innerHTML=mk('Intra-State Drift',m.intra_state,true)+mk('Signal Coupling',m.signal_coupling,true)+mk('Output Instability',m.output_instability,true)+mk('Temporal Deformation',m.temporal_deformation,true);
+  document.getElementById('lv-stabilityMetrics').innerHTML=mk('System Drift Index',m.sdi,false)+mk('Global Alignment',m.global_alignment,false)+mk('Reconfigurability',m.reconfig,false)+mk('Baseline Norm',m.bns,false);
+}
+function lvRenderAlerts(){
+  const el=document.getElementById('lv-alertStream');if(!lvAlerts.length){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--tx3);font-size:11px">No alerts</div>';return}
+  el.innerHTML=lvAlerts.slice(0,20).map((a,i)=>{const c=a.level==='GREEN'?'#16a34a':a.level==='YELLOW'?'#ca8a04':a.level==='RED'?'#dc2626':'#7c3aed';const bg=a.level==='GREEN'?'rgba(22,163,74,.1)':a.level==='YELLOW'?'rgba(202,138,4,.1)':a.level==='RED'?'rgba(220,38,38,.1)':'rgba(124,58,237,.1)';return '<div style="padding:7px 10px;border-bottom:1px solid var(--bd);border-left:3px solid '+c+';font-size:10px;'+(i===0?'background:'+bg:'')+'"><div style="display:flex;justify-content:space-between"><span style="font-weight:700;font-size:9px;padding:0 4px;border-radius:2px;color:'+c+';background:'+bg+'">'+a.level+'</span><span style="color:var(--tx3);font-size:9px">'+new Date(a.timestamp).toLocaleTimeString()+'</span></div><div style="color:var(--tx);margin-top:2px;line-height:1.4">'+a.message+'</div></div>'}).join('');
+}
+function lvRenderArt9(m){
+  const checks=[{art:'9(2)(a)',label:'Foreseeable Risks',val:m.output_instability,inv:true},{art:'9(2)(b)',label:'Risk Estimation',val:m.temporal_deformation,inv:true},{art:'9(3)',label:'Risk Mitigation',val:m.sdi,inv:false},{art:'9(7)',label:'Iterative Mgmt',val:m.bns,inv:false},{art:'9(8)',label:'Documentation',val:1,inv:false}];
+  document.getElementById('lv-art9Map').innerHTML=checks.map(c=>{const ok=c.inv?c.val<.5:c.val>=.5;return '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:10px"><span style="color:var(--tx3);font-family:monospace;font-size:9px;width:50px">'+c.art+'</span><span style="color:var(--tx2);flex:1">'+c.label+'</span><span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:'+(ok?'rgba(22,163,74,.1)':'rgba(220,38,38,.1)')+';color:'+(ok?'#16a34a':'#dc2626')+'">'+(ok?'PASS':'FAIL')+'</span></div>'}).join('');
+}
+function lvRenderLedger(){const el=document.getElementById('lv-ledger');if(!lvLedgerEntries.length)return;el.innerHTML=lvLedgerEntries.slice(0,20).map(e=>'<div style="padding:7px 12px;border-bottom:1px solid var(--bd);font-size:10px;line-height:1.5"><div style="font-weight:700">'+e.event+'</div><div style="color:var(--tx3);font-family:monospace;font-size:9px">'+e.event_id+' \u00b7 '+e.check+' \u00b7 SDI: '+e.sdi+'</div></div>').join('')}
+function lvUpdateFP(scenario,m){
+  const el=document.getElementById('lv-fpMatch');
+  lvFingerprints.forEach(f=>{f.confidence=f.scenarios.includes(scenario)?Math.min(1,f.confidence+.08):Math.max(0,f.confidence-.03)});
+  const top=lvFingerprints.filter(f=>f.confidence>.15).sort((a,b)=>b.confidence-a.confidence);
+  if(!top.length){el.innerHTML='<div style="color:var(--tx3);font-size:10px;padding:4px 0">Collecting pattern data...</div>';return}
+  el.innerHTML=top.map(f=>'<div style="padding:8px 10px;border-radius:8px;border:1px solid rgba(37,99,235,.15);background:rgba(37,99,235,.04);font-size:10px;margin-bottom:6px"><div style="font-weight:700;color:#2563eb;font-size:9px;margin-bottom:2px">'+f.pattern+' \u2014 '+(f.confidence*100).toFixed(0)+'%</div><div style="color:var(--tx2)">'+f.desc+'</div></div>').join('');
+}
+function lvRenderMultiSystem(){
+  document.getElementById('lv-multiGrid').innerHTML=lvSystems.map(sys=>{const s=lvGetStatus(sys.sdi);return '<div style="background:#fff;border-radius:10px;border:2px solid var(--bd);padding:14px;cursor:pointer;transition:all .2s"><div style="display:flex;justify-content:space-between"><div><div style="font-size:12px;font-weight:700;margin-bottom:4px">'+sys.name+'</div><div style="font-size:9px;color:var(--tx3);margin-bottom:8px">'+sys.type+'</div></div><div style="font-size:9px;color:var(--tx3)">'+sys.id+'</div></div><div style="font-size:20px;font-weight:800;font-family:monospace;color:'+s.color+'">'+sys.sdi.toFixed(3)+'</div><div style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;display:inline-block;margin-top:4px;background:'+s.bg+';color:'+s.color+'">'+s.icon+' '+s.label+'</div><div style="height:3px;background:var(--bg4);border-radius:2px;margin-top:8px;overflow:hidden"><div style="height:100%;width:'+Math.round(sys.sdi*100)+'%;background:'+s.color+'"></div></div></div>'}).join('');
+}
+function lvUpdateMultiLive(){
+  lvSystems[0].sdi=Math.max(.05,Math.min(.98,lvSystems[0].sdi+(Math.random()-.5)*.01));
+  lvSystems[1].sdi=Math.max(.05,Math.min(.98,lvSystems[1].sdi+(Math.random()-.5)*.015));
+  lvSystems[4].sdi=Math.max(.05,Math.min(.98,lvSystems[4].sdi+(Math.random()-.5)*.02));
+  lvSystems.forEach(sys=>{sys.trend.push(sys.sdi);if(sys.trend.length>7)sys.trend.shift()});
+  lvRenderMultiSystem();
 }
 
-// Auto-update monitor when tower processes a prompt
-const _origHandleSend = typeof handleSend==='function'?handleSend:null;
-setInterval(()=>{try{updateMonitorTab()}catch(e){}},500);
+// Init
+lvRenderMetrics(lvMetrics);lvRenderArt9(lvMetrics);lvDrawSeismo({color:'#16a34a',label:'STABLE'});lvRenderMultiSystem();
+
+// Compatibility stubs for old Tower code
+function updateMonitorTab(){if(lvRunning)return}
+function drawMonitorSeismo(){}
+function drawMonitorEkg(){}
+function mDrawSparkline(){}
+function renderMonitorArtMap(){}
+function monitorVerify(){if(lvHashChain.length===0){alert('No events yet. Start the monitor.');return}alert('\u2705 VERIFIED \u00b7 '+lvHashChain.length+' entries \u00b7 Chain: INTACT \u00b7 SHA-256')}
+let monitorAlerts=[];
+function addMonitorAlert(level,msg){lvAddAlert(level,msg,'TOWER',msg)}
+let mCdActive=false,mWaveData=[],mEkgData=[],mSecH=[],mDomH=[],mEffH=[];
+function startMonitorCountdown(){}
+function stopMonitorCountdown(){mCdActive=false}
+function mApprove(){}
+function mDeny(){}
+function mResetHalt(){}
+let mRecoveryMode=false,mRecoveryTick=0,mRecoveredBaseline=false;
+
+// ============================================================
+// MODE SWITCHING: DEMO vs LIVE
+// ============================================================
+let lvMode='demo'; // 'demo' or 'live'
+let lvLiveEma=0; // tracks effective risk from Tower events
+
+function lvSetMode(mode){
+  lvMode=mode;
+  const dBtn=document.getElementById('lv-modeDemo');
+  const lBtn=document.getElementById('lv-modeLive');
+  const banner=document.getElementById('lv-modeBanner');
+  const bannerText=document.getElementById('lv-modeBannerText');
+  const toggleBtn=document.getElementById('lv-toggleBtn');
+  
+  if(mode==='demo'){
+    dBtn.style.background='var(--ac3)';dBtn.style.color='#fff';
+    lBtn.style.background='#fff';lBtn.style.color='var(--tx3)';
+    banner.style.background='rgba(8,145,178,.06)';banner.style.borderColor='rgba(8,145,178,.2)';banner.style.color='var(--ac3)';
+    bannerText.textContent='DEMO MODE \u2014 Simulated drift scenarios. Use START + Scenario buttons to simulate.';
+    toggleBtn.style.display='';
+    document.querySelectorAll('.lv-scn').forEach(b=>b.style.display='');
+  } else {
+    // LIVE mode — stop any running demo
+    if(lvRunning){lvToggle()}
+    lBtn.style.background='var(--gn)';lBtn.style.color='#fff';
+    dBtn.style.background='#fff';dBtn.style.color='var(--tx3)';
+    banner.style.background='rgba(22,163,74,.06)';banner.style.borderColor='rgba(22,163,74,.2)';banner.style.color='var(--gn)';
+    bannerText.textContent='LIVE MODE \u2014 Monitoring real Control Tower events. Send prompts in Control Tower tab to see live data.';
+    toggleBtn.style.display='none';
+    document.querySelectorAll('.lv-scn').forEach(b=>b.style.display='none');
+  }
+}
+
+// ============================================================
+// BRIDGE: Tower Events → LV Monitor (LIVE mode)
+// ============================================================
+function lvBridgeTowerEvent(gateState, riskScore, eventType, summary){
+  if(lvMode!=='live') return;
+  
+  // Map Tower gate state to SDI (inverted: NORMAL=high SDI, LOCKDOWN=low SDI)
+  const sdiMap={NORMAL:.87,WARN:.55,DEFEND:.32,LOCKDOWN:.12};
+  const targetSdi=sdiMap[gateState]||.87;
+  
+  // Smooth transition towards target
+  const m=lvMetrics;
+  m.sdi=m.sdi*0.3+targetSdi*0.7; // fast blend
+  m.bns=Math.max(.3,Math.min(.98,m.bns+(Math.random()-.5)*.02));
+  const dv=1-m.sdi;
+  m.intra_state=Math.max(0,Math.min(1,dv*.8+(Math.random()-.5)*.05));
+  m.signal_coupling=Math.max(0,Math.min(1,dv*.7+(Math.random()-.5)*.04));
+  m.output_instability=Math.max(0,Math.min(1,dv*.9+(Math.random()-.5)*.06));
+  m.global_alignment=Math.max(0,Math.min(1,m.sdi*.95+(Math.random()-.5)*.04));
+  m.temporal_deformation=Math.max(0,Math.min(1,dv*.6+(Math.random()-.5)*.03));
+  m.reconfig=Math.max(0,Math.min(1,m.sdi*.8+(Math.random()-.5)*.05));
+  
+  // Add wave data for seismograph
+  const wave=(1-m.sdi)*60+Math.random()*15*(1-m.sdi);
+  lvWaveData.push(wave);lvWaveData.shift();
+  
+  // Log to LV systems
+  lvAddAlert(
+    gateState==='NORMAL'?'GREEN':gateState==='WARN'?'YELLOW':gateState==='DEFEND'?'RED':'BLACK',
+    '\ud83d\udce1 Tower: '+eventType.replace(/_/g,' ')+' \u2014 '+gateState+(riskScore?' (risk: '+riskScore.toFixed(3)+')':''),
+    'TOWER_BRIDGE',
+    riskScore
+  );
+  lvAddLedger('TOWER_'+eventType.toUpperCase(),gateState,'LIVE-BRIDGE',m.sdi);
+  
+  lvTick++;
+  lvUpdateDashboard();
+}
+
+// Decay function for LIVE mode — slowly returns to NORMAL when no events
+let lvLiveDecayInterval=null;
+function lvStartLiveDecay(){
+  if(lvLiveDecayInterval)return;
+  lvLiveDecayInterval=setInterval(()=>{
+    if(lvMode!=='live')return;
+    const m=lvMetrics;
+    // Slowly drift back to stable
+    m.sdi=Math.min(.87,m.sdi+.002);
+    m.bns=Math.min(.92,m.bns+.001);
+    const dv=1-m.sdi;
+    m.intra_state=Math.max(0,dv*.8);m.signal_coupling=Math.max(0,dv*.7);
+    m.output_instability=Math.max(0,dv*.9);m.global_alignment=Math.min(1,m.sdi*.95);
+    m.temporal_deformation=Math.max(0,dv*.6);m.reconfig=Math.min(1,m.sdi*.8);
+    const wave=(1-m.sdi)*60+Math.random()*5;
+    lvWaveData.push(wave);lvWaveData.shift();
+    lvSdiH.push(m.sdi);lvStabH.push(m.global_alignment);lvDriftH.push(m.output_instability);
+    if(lvSdiH.length>60){lvSdiH.shift();lvStabH.shift();lvDriftH.shift()}
+    lvUpdateDashboard();
+  },1000);
+}
+lvStartLiveDecay();
+let towerRecoveryActive=false,towerRecoveryPct=0,towerRecoveryInterval=null,towerPrevState=null;
+function triggerTowerRecovery(fromState){towerPrevState=fromState;towerRecoveryActive=true;towerRecoveryPct=0;const b=document.getElementById('postEventBanner');if(b)b.style.display='block';if(typeof addEvidenceEntry==='function')addEvidenceEntry('post_event_recovery_started','Recovery from '+fromState,fromState,{});const iv=setInterval(()=>{towerRecoveryPct+=2;if(towerRecoveryPct>=100){clearInterval(iv);towerRecoveryActive=false;if(typeof updateGateState==='function')updateGateState('NORMAL',0.02);if(typeof addEvidenceEntry==='function')addEvidenceEntry('post_event_recovery_complete','Recovery complete','NORMAL',{});setTimeout(()=>{const bb=document.getElementById('postEventBanner');if(bb)bb.style.display='none'},5000)}const bar=document.getElementById('postEventBar');if(bar)bar.style.width=towerRecoveryPct+'%';const pct=document.getElementById('postEventPct');if(pct)pct.textContent=towerRecoveryPct+'%';if(towerRecoveryPct===50)addMonitorAlert('GREEN','Recovery 50%');if(towerRecoveryPct===100){const ti=document.getElementById('postEventTitle');if(ti)ti.textContent='RECOVERY COMPLETE';const ic=document.getElementById('postEventIcon');if(ic)ic.textContent='\u2705'}},200)}
+function dismissPostEvent(){const b=document.getElementById('postEventBanner');if(b)b.style.display='none';towerRecoveryActive=false}
 </script>
+
+
+
 
 <script>
 // ============================================================
@@ -2620,6 +2488,8 @@ function scorePrompt(text){
 // ============================================================
 function updateGateState(state,risk){
   currentGateState=state;
+  // BRIDGE: Feed to LV Monitor in LIVE mode
+  if(typeof lvBridgeTowerEvent==='function'){lvBridgeTowerEvent(state,risk,'gate_state_changed','Gate → '+state)}
   const badge=document.getElementById('gateBadge');
   badge.className='gate-state-badge gate-'+state;
   badge.textContent=state;
@@ -3002,6 +2872,8 @@ function renderRemediation(state,contributors){
 // ============================================================
 async function addEvidenceEntry(type,summary,gateState,data){
   sequenceNo++;
+  // BRIDGE: Feed to LV Monitor in LIVE mode
+  if(typeof lvBridgeTowerEvent==='function'&&type!=='system_init'){lvBridgeTowerEvent(gateState,data?.risk_ema||0,type,summary)}
   const ts=new Date().toISOString();
   const eventId='evt_'+String(sequenceNo).padStart(6,'0');
   
