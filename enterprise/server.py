@@ -318,6 +318,7 @@ def verify_chain():
         anchor = data.get('anchor')
         cross_anchors = data.get('cross_anchors', {})
         rt_attest = data.get('rt_attest', {})
+        frozen_computed_at = data.get('frozen_computed_at')
 
         result = run_full_verification(
             evidence_log=evidence_log,
@@ -329,6 +330,7 @@ def verify_chain():
             anchor=anchor,
             cross_anchors=cross_anchors,
             rt_attest=rt_attest,
+            frozen_computed_at=frozen_computed_at,
         )
 
         logger.info(f"Chain verification: {'PASS' if result['ok'] else 'FAIL'} "
