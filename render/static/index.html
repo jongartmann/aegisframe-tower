@@ -4206,7 +4206,7 @@ async function runVerifier(){
   
   // Verify anchor
   const anchor=await computeExternalAnchor();
-  const anchorOk=anchor.anchor_hash!=null;
+  const anchorOk=anchor.anchored_hash!=null;
   
   // Verify cross-trail anchors
   const crossAnchors = await buildCrossTrailAnchors();
