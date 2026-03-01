@@ -25,6 +25,8 @@ logger = logging.getLogger('aegisframe')
 
 # Import PSCP proof engine
 from api.pscp_proof import pscp_engine
+# Import chain verifier
+from api.chain_verifier import verify_chain_integrity, compute_integrity_root, verify_anchor, run_full_verification
 
 # ============================================================
 # SERVE THE HTML
@@ -290,6 +292,56 @@ def pscp_trail():
         'count': len(pscp_engine.get_proof_trail()),
         'timestamp': datetime.now(timezone.utc).isoformat()
     })
+
+
+# ============================================================
+# CHAIN VERIFICATION ENDPOINT
+# ============================================================
+
+@app.route('/api/v1/verify/chain', methods=['POST'])
+def verify_chain():
+    """
+    Verify governance chain integrity, spec hash, oversight signatures,
+    and anchor. Accepts the full evidence export JSON from the frontend.
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Missing JSON body'}), 400
+
+        evidence_log = data.get('evidence_log', [])
+        policy_registry = data.get('policy_registry', {})
+        policy_spec_hash = data.get('policy_spec_hash', '')
+        actor_keys = data.get('actor_keys', {})
+        prev_hash_val = data.get('prev_hash', '')
+        inv_hash = data.get('inv_hash', '')
+        anchor = data.get('anchor')
+        cross_anchors = data.get('cross_anchors', {})
+        rt_attest = data.get('rt_attest', {})
+
+        result = run_full_verification(
+            evidence_log=evidence_log,
+            policy_registry=policy_registry,
+            policy_spec_hash=policy_spec_hash,
+            actor_keys=actor_keys,
+            prev_hash=prev_hash_val,
+            inv_hash=inv_hash,
+            anchor=anchor,
+            cross_anchors=cross_anchors,
+            rt_attest=rt_attest,
+        )
+
+        logger.info(f"Chain verification: {'PASS' if result['ok'] else 'FAIL'} "
+                     f"(chain={result['chain']['hash_chain_ok']}, "
+                     f"spec={result['chain']['spec_hash_ok']}, "
+                     f"sigs={result['chain']['signatures_ok']}, "
+                     f"anchor={result['anchor_ok']})")
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Chain verification error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 # ============================================================
