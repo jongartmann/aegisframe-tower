@@ -3963,6 +3963,10 @@ function buildPreSemanticInvariants(blocked, counterVerify){
 // ============================================================
 // EXPORT AUDIT PACKET v0.4.0 — 3-TRAIL
 // ============================================================
+// Cache: one run → one integrity root → one RFC 3161 anchor.
+// Both FULL and AUDITOR_MINIMAL exports share the same anchor.
+let _exportCache = { sessionId: null, crossAnchors: null, rtAttest: null, integrityRoot: null, anchor: null, audTrail: null, invTrail: null, govTrail: null, preEnf: null };
+
 async function exportAudit(mode){
   const exportMode = mode || 'FULL';
   const j=JURISDICTIONS[currentJur];
@@ -3970,8 +3974,22 @@ async function exportAudit(mode){
   const tokenSigned=evidenceLog.filter(e=>e.type==='oversight_token_signed').length;
   const tokenConsumed=evidenceLog.filter(e=>e.type==='oversight_token_consumed').length;
   const tokenExpired=evidenceLog.filter(e=>e.type==='oversight_token_expired').length;
-  const crossAnchors = await buildCrossTrailAnchors();
-  const rtAttest = buildRuntimeAttestation();
+
+  // Compute anchor artifacts once per session, reuse on subsequent exports
+  if(_exportCache.sessionId !== SESSION_ID){
+    _exportCache.sessionId = SESSION_ID;
+    _exportCache.crossAnchors = await buildCrossTrailAnchors();
+    _exportCache.rtAttest = buildRuntimeAttestation();
+    _exportCache.integrityRoot = await computeIntegrityRoot(prevHash, await ModelAdapter.getTrailHash(), PSDM.prevHash, PHDM.prevHash, policySpecHash, _exportCache.rtAttest, _exportCache.crossAnchors);
+    _exportCache.anchor = await buildExternalTimeAnchor(_exportCache.integrityRoot);
+    _exportCache.audTrail = await buildAuditorTrail(_exportCache.anchor, _exportCache.crossAnchors);
+  }
+  const crossAnchors = _exportCache.crossAnchors;
+  const rtAttest = _exportCache.rtAttest;
+  const integrityRoot = _exportCache.integrityRoot;
+  const anchor = _exportCache.anchor;
+  const audTrail = _exportCache.audTrail;
+
   const invTrail = await buildInvocationTrail();
   const govTrail = await buildGovernanceTrail();
   // Expose governance trail globally for verifier
@@ -3980,10 +3998,6 @@ async function exportAudit(mode){
   const counters = ModelAdapter.getCounterSnapshot();
   const blocked = counters.blocked_pre_semantic>0;
   const preEnf = buildPreSemanticEnforcement(blocked, 0, counters.total_requests);
-  // Compute integrity root first, then anchor it
-  const integrityRoot = await computeIntegrityRoot(prevHash, await ModelAdapter.getTrailHash(), PSDM.prevHash, PHDM.prevHash, policySpecHash, rtAttest, crossAnchors);
-  const anchor = await buildExternalTimeAnchor(integrityRoot);
-  const audTrail = await buildAuditorTrail(anchor, crossAnchors);
   
   // Auditor Minimal Mode — Trail C only
   // Reuse the same anchor, integrity root, and cross-trail anchors from this run.
