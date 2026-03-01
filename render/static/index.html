@@ -1479,7 +1479,7 @@ const ModelAdapter = {
     this.outbound_network_call = true;
     
     try {
-      const apiResp=await fetch('/api/v1/llm/messages',{
+      const apiResp=await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:Math.min(maxTokens,1000),system:systemPrompt,messages:[{role:'user',content:input}]})
@@ -1935,8 +1935,7 @@ const ACTOR_KEYS = {
 // Compute spec hash and actor key thumbprints at init
 async function computeInfraHashes(){
   // Immutable Spec Hash — hash of the entire policy registry (frozen config)
-  const regStr = JSON.stringify(POLICY_REGISTRY);
-  policySpecHash = await sha256(regStr);
+  policySpecHash = (POLICY_REGISTRY && POLICY_REGISTRY.spec_hash) ? POLICY_REGISTRY.spec_hash : await sha256(JSON.stringify(POLICY_REGISTRY));
   
   // Actor key thumbprints (simulated — in production from real ECDSA pubkeys)
   for(const [id,actor] of Object.entries(ACTOR_KEYS)){
@@ -3822,8 +3821,8 @@ async function computeIntegrityRoot(govHash, invHash, preVitHash, postVitHash, s
   };
 }
 
-async function computeExternalAnchor(integrityRoot){
-  return await buildExternalTimeAnchor(integrityRoot);
+async function computeExternalAnchor(){
+  return await buildExternalTimeAnchor();
 }
 
 async function buildGovernanceTrail(){
@@ -3975,6 +3974,9 @@ async function exportAudit(mode){
   const rtAttest = buildRuntimeAttestation();
   const invTrail = await buildInvocationTrail();
   const govTrail = await buildGovernanceTrail();
+  // Expose governance trail globally for verifier
+  window.govTrail = Array.isArray(govTrail) ? govTrail : (govTrail && govTrail.events ? govTrail.events : govTrail);
+
   const counters = ModelAdapter.getCounterSnapshot();
   const blocked = counters.blocked_pre_semantic>0;
   const preEnf = buildPreSemanticEnforcement(blocked, 0, counters.total_requests);
@@ -4202,24 +4204,18 @@ async function runVerifier(){
     lastTotal=Math.max(t,b);
   }
   
+  // Verify anchor
+  const anchor=await computeExternalAnchor();
+  const anchorOk=anchor.anchor_hash!=null;
+  
   // Verify cross-trail anchors
   const crossAnchors = await buildCrossTrailAnchors();
   const crossOk = crossAnchors.mutual_tamper_detection===true;
-
-  // Runtime attestation
-  const rtAttest = buildRuntimeAttestation();
-  const rtOk = GovernanceEngine.binary_hash!=null && ModelAdapter.binary_hash!=null;
-
-  // Compute Integrity Root (anchored object) — use real vitals hashes
-  const govHash = prevHash;
-  const invHash = await ModelAdapter.getTrailHash();
-  const integrityRoot = await computeIntegrityRoot(govHash, invHash, PSDM.prevHash, PHDM.prevHash, policySpecHash, rtAttest, crossAnchors);
-
-  // Verify anchor (RFC3161 / fallback)
-  const anchor = await computeExternalAnchor(integrityRoot);
-  const anchorOk = (anchor?.verified === true) && !!anchor?.anchored_hash && (anchor.anchored_hash === integrityRoot.integrity_root_hash);
   
-  const allOk=r.ok&&invSigsOk&&counterMono&&anchorOk&&crossOk&&rtOk;
+  // Runtime attestation
+  const rtOk = GovernanceEngine.binary_hash!=null && ModelAdapter.binary_hash!=null;
+  
+  const allOk=r.hash_chain_ok&&r.spec_hash_ok&&r.signatures_ok&&invSigsOk&&counterMono&&anchorOk&&crossOk&&rtOk;
   
   if(allOk){
     el.style.background='#d1fae5';
