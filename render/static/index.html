@@ -3986,35 +3986,32 @@ async function exportAudit(mode){
   const audTrail = await buildAuditorTrail(anchor, crossAnchors);
   
   // Auditor Minimal Mode — Trail C only
+  // Reuse the same anchor, integrity root, and cross-trail anchors from this run.
+  // One run → one integrity root → one RFC 3161 anchor.
   if(exportMode==='AUDITOR_MINIMAL'){
-    const minRtAttest = buildRuntimeAttestation();
-    const minCross = await buildCrossTrailAnchors();
-    const minRoot = await computeIntegrityRoot(prevHash, await ModelAdapter.getTrailHash(), PSDM.prevHash, PHDM.prevHash, policySpecHash, minRtAttest, minCross);
-    const minAnchor = await buildExternalTimeAnchor(minRoot);
-    const minAud = await buildAuditorTrail(minAnchor, minCross);
     const minPacket = {
       meta:{schema:'AEGISFRAME_AUDIT_PACKET',schema_version:'0.5.0-enterprise',export_mode:'AUDITOR_MINIMAL'},
       audit_packet_id:'AP_'+SESSION_ID,
       session_id:SESSION_ID,
       created_at:new Date().toISOString(),
-      trail_c_auditor: minAud,
-      cross_trail_verification: minCross,
+      trail_c_auditor: audTrail,
+      cross_trail_verification: crossAnchors,
       runtime_attestation: {
-        governance_binary_hash:minRtAttest.governance_binary_hash,
-        adapter_binary_hash:minRtAttest.adapter_binary_hash,
-        governance_container_digest:minRtAttest.governance_container_digest,
-        adapter_container_digest:minRtAttest.adapter_container_digest
+        governance_binary_hash:rtAttest.governance_binary_hash,
+        adapter_binary_hash:rtAttest.adapter_binary_hash,
+        governance_container_digest:rtAttest.governance_container_digest,
+        adapter_container_digest:rtAttest.adapter_container_digest
       },
-      external_time_anchor: minAnchor,
-      integrity_root: minRoot,
+      external_time_anchor: anchor,
+      integrity_root: integrityRoot,
       pre_vitals_summary:{count:PSDM.chain.length,worst_state:PSDM.getStatus(),hash_final:PSDM.prevHash},
       post_vitals_summary:{count:PHDM.chain.length,any_policy_hits:PHDM.current.safetyFlags>0,hash_final:PHDM.prevHash},
       invariants_declared:10,
       compliance_disclaimer:'This packet provides technical evidence artifacts. Compliance depends on deployment context, organizational processes, and governance framework.',
       compliance_mapping: j.articles,
-      compliance_status: minAud.compliance_status
+      compliance_status: audTrail.compliance_status
     };
-    document.getElementById('exportDesc').textContent=`AUDITOR MINIMAL \u00B7 Trail C only \u00B7 ${new Date().toLocaleString('de-CH')}`;
+    document.getElementById('exportDesc').textContent=`AUDITOR MINIMAL \u00B7 Trail C only \u00B7 Anchor: ${anchor.anchor_receipt_id} \u00B7 ${new Date().toLocaleString('de-CH')}`;
     document.getElementById('exportContent').textContent=JSON.stringify(minPacket,null,2);
     document.getElementById('exportModal').classList.add('show');
     return;
