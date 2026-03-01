@@ -215,7 +215,9 @@ def run_full_verification(evidence_log: list[dict],
                           inv_hash: str,
                           anchor: dict | None = None,
                           cross_anchors: dict | None = None,
-                          rt_attest: dict | None = None) -> dict:
+                          rt_attest: dict | None = None,
+                          pre_vit_hash: str | None = None,
+                          post_vit_hash: str | None = None) -> dict:
     """
     Run the complete verification pipeline (matches frontend runVerifier).
     """
@@ -228,12 +230,12 @@ def run_full_verification(evidence_log: list[dict],
         evidence_log, policy_registry, policy_spec_hash, actor_keys
     )
 
-    # 2. Compute integrity root
+    # 2. Compute integrity root — use real vitals hashes when provided
     integrity_root = compute_integrity_root(
         gov_hash=prev_hash,
         inv_hash=inv_hash,
-        pre_vit_hash=z64,
-        post_vit_hash=z64,
+        pre_vit_hash=pre_vit_hash or z64,
+        post_vit_hash=post_vit_hash or z64,
         spec_hash=policy_spec_hash,
         rt_attest=rt_attest,
         cross_anchors=cross_anchors,

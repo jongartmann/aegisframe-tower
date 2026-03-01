@@ -2007,27 +2007,34 @@ async function generateApprovalToken(actorKey, decision, scopeArr, requestId, re
 }
 
 // ============================================================
-// EXTERNAL AUDIT VERIFIER v0.3.0
+// EXTERNAL AUDIT VERIFIER v0.4.0
 // ============================================================
-async function verifyChainIntegrity(){
+async function verifyChainIntegrity(log, specHash, registry, actorKeys){
+  // Accept explicit inputs; fall back to globals for backward compatibility
+  const chain = log || evidenceLog;
+  const expectedSpecHash = specHash || policySpecHash;
+  const policyReg = registry || POLICY_REGISTRY;
+  const actors = actorKeys || ACTOR_KEYS;
+
   const results = {
     ok: false,
     hash_chain_ok: true,
     spec_hash_ok: false,
     signatures_ok: true,
     failures: [],
-    chain_length: evidenceLog.length,
+    chain_length: chain.length,
     verified: 0,
     signatures_checked: 0,
-    policy_registry_version: POLICY_REGISTRY.version,
+    policy_registry_version: policyReg.version,
     verification_timestamp: new Date().toISOString()
   };
-  
+
   // 1. Verify hash chain
-  for(let i=0;i<evidenceLog.length;i++){
-    const evt = evidenceLog[i];
-    const payload = {event_id:evt.event_id,timestamp:evt.timestamp,type:evt.type,gate_state:evt.gate_state,data:evt.data,sequence_no:evt.sequence_no,prev_hash:evt.prev_hash};
-    const expectedHash = await sha256(JSON.stringify(payload));
+  for(let i=0;i<chain.length;i++){
+    const evt = chain[i];
+    // Reconstruct payload in the same key order used by addEvidenceEntry
+    const payloadStr = JSON.stringify({event_id:evt.event_id,timestamp:evt.timestamp,type:evt.type,gate_state:evt.gate_state,data:evt.data,sequence_no:evt.sequence_no,prev_hash:evt.prev_hash});
+    const expectedHash = await sha256(payloadStr);
     if(expectedHash !== evt.hash){
       results.hash_chain_ok=false;
       results.failures.push({event_id:evt.event_id,failure_type:'EVENT_HASH_MISMATCH',detail:`Expected ${expectedHash.substring(0,16)}... got ${evt.hash.substring(0,16)}...`});
@@ -2040,7 +2047,7 @@ async function verifyChainIntegrity(){
         results.failures.push({event_id:evt.event_id,failure_type:'CHAIN_HASH_MISMATCH',detail:'chain_hash does not match SHA-256(prev_hash + hash)'});
         break;
       }
-      if(evt.prev_hash !== evidenceLog[i-1].chain_hash){
+      if(evt.prev_hash !== chain[i-1].chain_hash){
         results.hash_chain_ok=false;
         results.failures.push({event_id:evt.event_id,failure_type:'PREV_HASH_LINKAGE_BROKEN',detail:'prev_hash does not match previous event chain_hash'});
         break;
@@ -2048,34 +2055,32 @@ async function verifyChainIntegrity(){
     }
     results.verified++;
   }
-  
+
   // 2. Verify spec hash
-  const currentSpecHash = await sha256(JSON.stringify(POLICY_REGISTRY));
-  results.spec_hash_ok = (currentSpecHash === policySpecHash);
+  const currentSpecHash = await sha256(JSON.stringify(policyReg));
+  results.spec_hash_ok = (currentSpecHash === expectedSpecHash);
   if(!results.spec_hash_ok){
     results.failures.push({event_id:'N/A',failure_type:'SPEC_HASH_MISMATCH',detail:'Policy registry has been modified since init'});
   }
-  
+
   // 3. Verify all oversight signatures
-  const signedEvents = evidenceLog.filter(e=>e.type==='oversight_token_signed'&&e.data?.payload_hash&&e.data?.signature);
+  const signedEvents = chain.filter(e=>e.type==='oversight_token_signed'&&e.data?.payload_hash&&e.data?.signature);
   for(const evt of signedEvents){
     results.signatures_checked++;
     const d=evt.data;
-    // Find actor
-    const actor=Object.values(ACTOR_KEYS).find(a=>a.actor_id===d.actor_id);
+    const actor=Object.values(actors).find(a=>a.actor_id===d.actor_id);
     if(!actor){
       results.signatures_ok=false;
       results.failures.push({event_id:evt.event_id,failure_type:'ACTOR_NOT_FOUND',detail:`Actor ${d.actor_id} not in registry`});
       continue;
     }
-    // Re-derive expected signature
     const expectedSig = await sha256(d.payload_hash + actor.public_key_thumbprint);
     if(expectedSig !== d.signature){
       results.signatures_ok=false;
       results.failures.push({event_id:evt.event_id,failure_type:'SIGNATURE_INVALID',detail:`ECDSA P-256 verification failed for ${d.actor_id} (${d.key_id})`});
     }
   }
-  
+
   results.ok = results.hash_chain_ok && results.spec_hash_ok && results.signatures_ok;
   return results;
 }
@@ -2876,12 +2881,13 @@ async function addEvidenceEntry(type,summary,gateState,data){
   if(typeof lvBridgeTowerEvent==='function'&&type!=='system_init'){lvBridgeTowerEvent(gateState,data?.risk_ema||0,type,summary)}
   const ts=new Date().toISOString();
   const eventId='evt_'+String(sequenceNo).padStart(6,'0');
-  
-  const payload=JSON.stringify({event_id:eventId,timestamp:ts,type,gate_state:gateState,data,sequence_no:sequenceNo,prev_hash:prevHash});
-  const hash=await sha256(payload);
+
+  // Canonical payload: key order must match verifyChainIntegrity reconstruction
+  const payload={event_id:eventId,timestamp:ts,type,gate_state:gateState,data,sequence_no:sequenceNo,prev_hash:prevHash};
+  const hash=await sha256(JSON.stringify(payload));
   const chainHash=await sha256(prevHash+hash);
-  
-  const entry={event_id:eventId,timestamp:ts,type,summary,gate_state:gateState,data,hash,chain_hash:chainHash,prev_hash:prevHash,sequence_no:sequenceNo};
+
+  const entry={...payload,summary,hash,chain_hash:chainHash};
   evidenceLog.push(entry);
   prevHash=chainHash;
   
@@ -4204,11 +4210,10 @@ async function runVerifier(){
   const rtAttest = buildRuntimeAttestation();
   const rtOk = GovernanceEngine.binary_hash!=null && ModelAdapter.binary_hash!=null;
 
-  // Compute Integrity Root (anchored object)
+  // Compute Integrity Root (anchored object) — use real vitals hashes
   const govHash = prevHash;
   const invHash = await ModelAdapter.getTrailHash();
-  const z64 = '0'.repeat(64);
-  const integrityRoot = await computeIntegrityRoot(govHash, invHash, z64, z64, policySpecHash, rtAttest, crossAnchors);
+  const integrityRoot = await computeIntegrityRoot(govHash, invHash, PSDM.prevHash, PHDM.prevHash, policySpecHash, rtAttest, crossAnchors);
 
   // Verify anchor (RFC3161 / fallback)
   const anchor = await computeExternalAnchor(integrityRoot);

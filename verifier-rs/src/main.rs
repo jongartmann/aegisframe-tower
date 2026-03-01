@@ -307,6 +307,8 @@ pub fn run_full_verification(
     anchor: Option<&Anchor>,
     cross_anchors: &Value,
     rt_attest: &Value,
+    pre_vit_hash: Option<&str>,
+    post_vit_hash: Option<&str>,
 ) -> FullVerifyResult {
     let z64 = "0".repeat(64);
 
@@ -315,8 +317,8 @@ pub fn run_full_verification(
     let integrity_root = compute_integrity_root(
         prev_hash,
         inv_hash,
-        &z64,
-        &z64,
+        pre_vit_hash.unwrap_or(&z64),
+        post_vit_hash.unwrap_or(&z64),
         policy_spec_hash,
         rt_attest,
         cross_anchors,
@@ -404,6 +406,8 @@ fn main() {
     let anchor: Option<Anchor> = serde_json::from_value(doc["anchor"].clone()).ok();
     let cross_anchors = doc.get("cross_anchors").cloned().unwrap_or(Value::Object(Default::default()));
     let rt_attest = doc.get("rt_attest").cloned().unwrap_or(Value::Object(Default::default()));
+    let pre_vit_hash = doc.get("pre_vit_hash").and_then(|v| v.as_str());
+    let post_vit_hash = doc.get("post_vit_hash").and_then(|v| v.as_str());
 
     let result = run_full_verification(
         &evidence_log,
@@ -415,6 +419,8 @@ fn main() {
         anchor.as_ref(),
         &cross_anchors,
         &rt_attest,
+        pre_vit_hash,
+        post_vit_hash,
     );
 
     let output = serde_json::to_string_pretty(&result).unwrap();
