@@ -2008,9 +2008,6 @@ async function generateApprovalToken(actorKey, decision, scopeArr, requestId, re
 // ============================================================
 // EXTERNAL AUDIT VERIFIER v0.4.0
 // ============================================================
-<<<<<<< HEAD
-async function verifyChainIntegrity(){
-=======
 async function verifyChainIntegrity(log, specHash, registry, actorKeys){
   // Accept explicit inputs; fall back to globals for backward compatibility
   const chain = log || evidenceLog;
@@ -2018,27 +2015,12 @@ async function verifyChainIntegrity(log, specHash, registry, actorKeys){
   const policyReg = registry || POLICY_REGISTRY;
   const actors = actorKeys || ACTOR_KEYS;
 
->>>>>>> origin/claude/fix-chain-backup-0hBHy
   const results = {
     ok: false,
     hash_chain_ok: true,
     spec_hash_ok: false,
     signatures_ok: true,
     failures: [],
-<<<<<<< HEAD
-    chain_length: evidenceLog.length,
-    verified: 0,
-    signatures_checked: 0,
-    policy_registry_version: POLICY_REGISTRY.version,
-    verification_timestamp: new Date().toISOString()
-  };
-  
-  // 1. Verify hash chain
-  for(let i=0;i<evidenceLog.length;i++){
-    const evt = evidenceLog[i];
-    const payload = {event_id:evt.event_id,timestamp:evt.timestamp,type:evt.type,gate_state:evt.gate_state,data:evt.data};
-    const expectedHash = await sha256(JSON.stringify(payload));
-=======
     chain_length: chain.length,
     verified: 0,
     signatures_checked: 0,
@@ -2052,7 +2034,6 @@ async function verifyChainIntegrity(log, specHash, registry, actorKeys){
     // Reconstruct payload in the same key order used by addEvidenceEntry
     const payloadStr = JSON.stringify({event_id:evt.event_id,timestamp:evt.timestamp,type:evt.type,gate_state:evt.gate_state,data:evt.data,sequence_no:evt.sequence_no,prev_hash:evt.prev_hash});
     const expectedHash = await sha256(payloadStr);
->>>>>>> origin/claude/fix-chain-backup-0hBHy
     if(expectedHash !== evt.hash){
       results.hash_chain_ok=false;
       results.failures.push({event_id:evt.event_id,failure_type:'EVENT_HASH_MISMATCH',detail:`Expected ${expectedHash.substring(0,16)}... got ${evt.hash.substring(0,16)}...`});
@@ -2065,11 +2046,7 @@ async function verifyChainIntegrity(log, specHash, registry, actorKeys){
         results.failures.push({event_id:evt.event_id,failure_type:'CHAIN_HASH_MISMATCH',detail:'chain_hash does not match SHA-256(prev_hash + hash)'});
         break;
       }
-<<<<<<< HEAD
-      if(evt.prev_hash !== evidenceLog[i-1].chain_hash){
-=======
       if(evt.prev_hash !== chain[i-1].chain_hash){
->>>>>>> origin/claude/fix-chain-backup-0hBHy
         results.hash_chain_ok=false;
         results.failures.push({event_id:evt.event_id,failure_type:'PREV_HASH_LINKAGE_BROKEN',detail:'prev_hash does not match previous event chain_hash'});
         break;
@@ -2077,23 +2054,6 @@ async function verifyChainIntegrity(log, specHash, registry, actorKeys){
     }
     results.verified++;
   }
-<<<<<<< HEAD
-  
-  // 2. Verify spec hash
-  const currentSpecHash = await sha256(JSON.stringify(POLICY_REGISTRY));
-  results.spec_hash_ok = (currentSpecHash === policySpecHash);
-  if(!results.spec_hash_ok){
-    results.failures.push({event_id:'N/A',failure_type:'SPEC_HASH_MISMATCH',detail:'Policy registry has been modified since init'});
-  }
-  
-  // 3. Verify all oversight signatures
-  const signedEvents = evidenceLog.filter(e=>e.type==='oversight_token_signed'&&e.data?.payload_hash&&e.data?.signature);
-  for(const evt of signedEvents){
-    results.signatures_checked++;
-    const d=evt.data;
-    // Find actor
-    const actor=Object.values(ACTOR_KEYS).find(a=>a.actor_id===d.actor_id);
-=======
 
   // 2. Verify spec hash
   const currentSpecHash = await sha256(JSON.stringify(policyReg));
@@ -2108,27 +2068,18 @@ async function verifyChainIntegrity(log, specHash, registry, actorKeys){
     results.signatures_checked++;
     const d=evt.data;
     const actor=Object.values(actors).find(a=>a.actor_id===d.actor_id);
->>>>>>> origin/claude/fix-chain-backup-0hBHy
     if(!actor){
       results.signatures_ok=false;
       results.failures.push({event_id:evt.event_id,failure_type:'ACTOR_NOT_FOUND',detail:`Actor ${d.actor_id} not in registry`});
       continue;
     }
-<<<<<<< HEAD
-    // Re-derive expected signature
-=======
->>>>>>> origin/claude/fix-chain-backup-0hBHy
     const expectedSig = await sha256(d.payload_hash + actor.public_key_thumbprint);
     if(expectedSig !== d.signature){
       results.signatures_ok=false;
       results.failures.push({event_id:evt.event_id,failure_type:'SIGNATURE_INVALID',detail:`ECDSA P-256 verification failed for ${d.actor_id} (${d.key_id})`});
     }
   }
-<<<<<<< HEAD
-  
-=======
 
->>>>>>> origin/claude/fix-chain-backup-0hBHy
   results.ok = results.hash_chain_ok && results.spec_hash_ok && results.signatures_ok;
   return results;
 }
@@ -4260,22 +4211,6 @@ async function runVerifier(){
   // Verify cross-trail anchors
   const crossAnchors = await buildCrossTrailAnchors();
   const crossOk = crossAnchors.mutual_tamper_detection===true;
-<<<<<<< HEAD
-=======
-
-  // Runtime attestation
-  const rtAttest = buildRuntimeAttestation();
-  const rtOk = GovernanceEngine.binary_hash!=null && ModelAdapter.binary_hash!=null;
-
-  // Compute Integrity Root (anchored object) — use real vitals hashes
-  const govHash = prevHash;
-  const invHash = await ModelAdapter.getTrailHash();
-  const integrityRoot = await computeIntegrityRoot(govHash, invHash, PSDM.prevHash, PHDM.prevHash, policySpecHash, rtAttest, crossAnchors);
-
-  // Verify anchor (RFC3161 / fallback)
-  const anchor = await computeExternalAnchor(integrityRoot);
-  const anchorOk = (anchor?.verified === true) && !!anchor?.anchored_hash && (anchor.anchored_hash === integrityRoot.integrity_root_hash);
->>>>>>> origin/claude/fix-chain-backup-0hBHy
   
   // Runtime attestation
   const rtOk = GovernanceEngine.binary_hash!=null && ModelAdapter.binary_hash!=null;
