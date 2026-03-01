@@ -626,6 +626,9 @@ body{background:var(--bg);color:var(--tx);font-family:'IBM Plex Sans',sans-serif
 
 
 <script>
+
+// Global fallback to avoid ReferenceError in verifier flows
+var govTrail;
 // ============================================================
 // TAB SWITCHING
 // ============================================================
@@ -2009,9 +2012,12 @@ async function generateApprovalToken(actorKey, decision, scopeArr, requestId, re
 // ============================================================
 // EXTERNAL AUDIT VERIFIER v0.3.0
 // ============================================================
-async function verifyChainIntegrity(govTrail){
+async function verifyChainIntegrity(_govTrail){
 
-  // Structural chain verification:
+  
+  // Normalize input: prefer explicit param, fall back to global govTrail if present
+  const govTrail = Array.isArray(_govTrail) ? _govTrail : (Array.isArray(window.govTrail) ? window.govTrail : []);
+// Structural chain verification:
   // - validates prev_hash linkage to prior chain_hash
   // - validates genesis prev_hash is zero
   // - validates latest_chain_hash equals last event chain_hash
