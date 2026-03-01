@@ -1377,7 +1377,7 @@ const ModelAdapter = {
   
   // Sign a payload with the adapter process key (simulated ECDSA P-256)
   async signPayload(payload){
-    const payloadHash = await sha256(JSON.stringify(payload));
+    const payloadHash = await sha256(canon(payload));
     const sig = await sha256(payloadHash + this._process_key_thumbprint);
     return {payload_hash:payloadHash, signature:sig, signature_algo:'ECDSA_P256', signed_by:'MODEL_ADAPTER_PROCESS_KEY'};
   },
@@ -2027,7 +2027,7 @@ async function verifyChainIntegrity(){
   for(let i=0;i<evidenceLog.length;i++){
     const evt = evidenceLog[i];
     const payload = {event_id:evt.event_id,timestamp:evt.timestamp,type:evt.type,gate_state:evt.gate_state,data:evt.data};
-    const expectedHash = await sha256(JSON.stringify(payload));
+    const expectedHash = await sha256(canon(payload));
     if(expectedHash !== evt.hash){
       results.hash_chain_ok=false;
       results.failures.push({event_id:evt.event_id,failure_type:'EVENT_HASH_MISMATCH',detail:`Expected ${expectedHash.substring(0,16)}... got ${evt.hash.substring(0,16)}...`});
@@ -2050,7 +2050,7 @@ async function verifyChainIntegrity(){
   }
   
   // 2. Verify spec hash
-  const currentSpecHash = await sha256(JSON.stringify(POLICY_REGISTRY));
+  const currentSpecHash = await sha256(canon(POLICY_REGISTRY));
   results.spec_hash_ok = (currentSpecHash === policySpecHash);
   if(!results.spec_hash_ok){
     results.failures.push({event_id:'N/A',failure_type:'SPEC_HASH_MISMATCH',detail:'Policy registry has been modified since init'});
@@ -2251,6 +2251,27 @@ async function sha256(data){
   const buf=await crypto.subtle.digest('SHA-256',enc);
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
+
+// Deterministic JSON stringify (RFC8785-inspired) for hashing
+function canon(v){
+  if(v===null) return "null";
+  const t = typeof v;
+  if(t==="number"){
+    // RFC8785: JSON numbers are finite; keep JS default string form
+    if(!Number.isFinite(v)) throw new Error("Non-finite number in canonicalization");
+    return String(v);
+  }
+  if(t==="boolean") return v ? "true" : "false";
+  if(t==="string") return JSON.stringify(v);
+  if(Array.isArray(v)) return "[" + v.map(canon).join(",") + "]";
+  if(t==="object"){
+    const keys = Object.keys(v).sort();
+    return "{" + keys.map(k => JSON.stringify(k) + ":" + canon(v[k])).join(",") + "}";
+  }
+  // undefined / functions not allowed in JSON; treat as null for safety
+  return "null";
+}
+
 
 // ============================================================
 // RISK SCORING
