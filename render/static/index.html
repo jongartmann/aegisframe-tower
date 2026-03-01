@@ -1243,6 +1243,7 @@ let oversightState = 'NONE';
 let oversightTimer = null;
 let policySpecHash = null;
 const SESSION_ID = 'SES_'+Math.random().toString(36).substring(2,12);
+const SESSION_STARTED_AT = new Date().toISOString();
 let currentTokenId = null;
 let pspVisible = false;
 
@@ -3799,7 +3800,7 @@ async function buildExternalTimeAnchor(integrityRoot){
 // ============================================================
 // INTEGRITY ROOT — Single anchored object for RFC3161
 // ============================================================
-async function computeIntegrityRoot(govHash, invHash, preVitHash, postVitHash, specHash, rtAttest, crossAnchors){
+async function computeIntegrityRoot(govHash, invHash, preVitHash, postVitHash, specHash, rtAttest, crossAnchors, frozenComputedAt){
   const components = {
     policy_spec_hash: specHash,
     runtime_attestation_hash: await sha256(JSON.stringify(rtAttest)),
@@ -3811,14 +3812,19 @@ async function computeIntegrityRoot(govHash, invHash, preVitHash, postVitHash, s
   };
   const canonicalJson = JSON.stringify(components, Object.keys(components).sort());
   const rootHash = await sha256(canonicalJson);
-  return {
+  const now = new Date().toISOString();
+  const result = {
     integrity_root_hash: rootHash,
     anchored_object: 'INTEGRITY_ROOT_V1',
     components: components,
     canonicalization: 'RFC8785',
     hash_algo: 'SHA-256',
-    computed_at: new Date().toISOString()
+    computed_at: frozenComputedAt || now
   };
+  if(frozenComputedAt && frozenComputedAt !== now){
+    result.recomputed_at = now;
+  }
+  return result;
 }
 
 async function computeExternalAnchor(){
@@ -3965,7 +3971,7 @@ function buildPreSemanticInvariants(blocked, counterVerify){
 // ============================================================
 // Cache: one run → one integrity root → one RFC 3161 anchor.
 // Both FULL and AUDITOR_MINIMAL exports share the same anchor.
-let _exportCache = { sessionId: null, crossAnchors: null, rtAttest: null, integrityRoot: null, anchor: null, audTrail: null, invTrail: null, govTrail: null, preEnf: null };
+let _exportCache = { sessionId: null, crossAnchors: null, rtAttest: null, integrityRoot: null, anchor: null, audTrail: null, invTrail: null, govTrail: null, preEnf: null, anchorComputedAt: null };
 
 async function exportAudit(mode){
   const exportMode = mode || 'FULL';
@@ -3981,6 +3987,7 @@ async function exportAudit(mode){
     _exportCache.crossAnchors = await buildCrossTrailAnchors();
     _exportCache.rtAttest = buildRuntimeAttestation();
     _exportCache.integrityRoot = await computeIntegrityRoot(prevHash, await ModelAdapter.getTrailHash(), PSDM.prevHash, PHDM.prevHash, policySpecHash, _exportCache.rtAttest, _exportCache.crossAnchors);
+    _exportCache.anchorComputedAt = _exportCache.integrityRoot.computed_at;
     _exportCache.anchor = await buildExternalTimeAnchor(_exportCache.integrityRoot);
     _exportCache.audTrail = await buildAuditorTrail(_exportCache.anchor, _exportCache.crossAnchors);
   }
@@ -4007,7 +4014,8 @@ async function exportAudit(mode){
       meta:{schema:'AEGISFRAME_AUDIT_PACKET',schema_version:'0.5.0-enterprise',export_mode:'AUDITOR_MINIMAL'},
       audit_packet_id:'AP_'+SESSION_ID,
       session_id:SESSION_ID,
-      created_at:new Date().toISOString(),
+      session_started_at:SESSION_STARTED_AT,
+      export_created_at:new Date().toISOString(),
       trail_c_auditor: audTrail,
       cross_trail_verification: crossAnchors,
       runtime_attestation: {
@@ -4035,7 +4043,8 @@ async function exportAudit(mode){
     meta:{schema:'AEGISFRAME_AUDIT_PACKET',schema_version:'0.5.0-enterprise',spec_id:'AEGISFRAME_GOV_RUNTIME_SPEC',spec_version:'0.5.0',export_mode:'FULL',backward_compatible_with:['0.3.0','0.2.0','0.1.0']},
     audit_packet_id:'AP_'+SESSION_ID,
     session_id:SESSION_ID,
-    created_at:new Date().toISOString(),
+    session_started_at:SESSION_STARTED_AT,
+    export_created_at:new Date().toISOString(),
     profile_id:j.name,
     jurisdiction:currentJur,
     risk_class:j.profile,
@@ -4124,7 +4133,7 @@ async function exportAudit(mode){
       policy_spec_hash:policySpecHash,
       cross_trail_anchor_hash:crossAnchors.cross_anchor_hash,
       runtime_attestation_included:true,
-      integrity_root: await computeIntegrityRoot(prevHash, await ModelAdapter.getTrailHash(), PSDM.prevHash, PHDM.prevHash, policySpecHash, rtAttest, crossAnchors),
+      integrity_root: await computeIntegrityRoot(prevHash, await ModelAdapter.getTrailHash(), PSDM.prevHash, PHDM.prevHash, policySpecHash, rtAttest, crossAnchors, _exportCache.anchorComputedAt),
       anchored_object:'INTEGRITY_ROOT_V1',
       anchor_receipt_id:anchor.anchor_receipt_id,
       anchor_hash:anchor.anchored_hash,

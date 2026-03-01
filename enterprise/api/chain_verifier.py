@@ -161,10 +161,15 @@ def compute_integrity_root(gov_hash: str,
                            post_vit_hash: str,
                            spec_hash: str,
                            rt_attest: dict,
-                           cross_anchors: dict) -> dict:
+                           cross_anchors: dict,
+                           frozen_computed_at: str | None = None) -> dict:
     """
     Compute the integrity root — single anchored object for RFC 3161.
     Mirrors the frontend computeIntegrityRoot().
+
+    If frozen_computed_at is provided (from a previous anchoring), computed_at
+    is preserved at the original anchor time and recomputed_at records when
+    this re-derivation occurred.
     """
     rt_attest_hash = sha256_hex(json.dumps(rt_attest, separators=(',', ':')))
     components = {
@@ -180,14 +185,18 @@ def compute_integrity_root(gov_hash: str,
     canonical = json.dumps(components, sort_keys=True, separators=(',', ':'))
     root_hash = sha256_hex(canonical)
 
-    return {
+    now = datetime.now(timezone.utc).isoformat()
+    result = {
         'integrity_root_hash': root_hash,
         'anchored_object': 'INTEGRITY_ROOT_V1',
         'components': components,
         'canonicalization': 'RFC8785',
         'hash_algo': 'SHA-256',
-        'computed_at': datetime.now(timezone.utc).isoformat(),
+        'computed_at': frozen_computed_at or now,
     }
+    if frozen_computed_at and frozen_computed_at != now:
+        result['recomputed_at'] = now
+    return result
 
 
 def verify_anchor(anchor: dict, integrity_root: dict) -> bool:
@@ -217,7 +226,8 @@ def run_full_verification(evidence_log: list[dict],
                           cross_anchors: dict | None = None,
                           rt_attest: dict | None = None,
                           pre_vit_hash: str | None = None,
-                          post_vit_hash: str | None = None) -> dict:
+                          post_vit_hash: str | None = None,
+                          frozen_computed_at: str | None = None) -> dict:
     """
     Run the complete verification pipeline (matches frontend runVerifier).
     """
@@ -239,6 +249,7 @@ def run_full_verification(evidence_log: list[dict],
         spec_hash=policy_spec_hash,
         rt_attest=rt_attest,
         cross_anchors=cross_anchors,
+        frozen_computed_at=frozen_computed_at,
     )
 
     # 3. Verify anchor
