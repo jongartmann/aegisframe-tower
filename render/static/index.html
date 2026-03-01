@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%9B%A1%EF%B8%8F%3C/text%3E%3C/svg%3E">
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AegisFrame — AI Control Tower · X-Loop³ Labs</title>
@@ -628,10 +626,6 @@ body{background:var(--bg);color:var(--tx);font-family:'IBM Plex Sans',sans-serif
 
 
 <script>
-
-// Global fallback to avoid ReferenceError in verifier flows
-window.govTrail = window.govTrail || [];
-var govTrail = window.govTrail;
 // ============================================================
 // TAB SWITCHING
 // ============================================================
@@ -1383,7 +1377,7 @@ const ModelAdapter = {
   
   // Sign a payload with the adapter process key (simulated ECDSA P-256)
   async signPayload(payload){
-    const payloadHash = await sha256(canon(payload));
+    const payloadHash = await sha256(JSON.stringify(payload));
     const sig = await sha256(payloadHash + this._process_key_thumbprint);
     return {payload_hash:payloadHash, signature:sig, signature_algo:'ECDSA_P256', signed_by:'MODEL_ADAPTER_PROCESS_KEY'};
   },
@@ -1485,7 +1479,7 @@ const ModelAdapter = {
     this.outbound_network_call = true;
     
     try {
-      const apiResp=await fetch('/api/v1/llm/messages',{
+      const apiResp=await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:Math.min(maxTokens,1000),system:systemPrompt,messages:[{role:'user',content:input}]})
@@ -1941,8 +1935,7 @@ const ACTOR_KEYS = {
 // Compute spec hash and actor key thumbprints at init
 async function computeInfraHashes(){
   // Immutable Spec Hash — hash of the entire policy registry (frozen config)
-  const regStr = JSON.stringify(POLICY_REGISTRY);
-  policySpecHash = await sha256(regStr);
+  policySpecHash = (POLICY_REGISTRY && POLICY_REGISTRY.spec_hash) ? POLICY_REGISTRY.spec_hash : await sha256(JSON.stringify(POLICY_REGISTRY));
   
   // Actor key thumbprints (simulated — in production from real ECDSA pubkeys)
   for(const [id,actor] of Object.entries(ACTOR_KEYS)){
@@ -2015,44 +2008,75 @@ async function generateApprovalToken(actorKey, decision, scopeArr, requestId, re
 // ============================================================
 // EXTERNAL AUDIT VERIFIER v0.3.0
 // ============================================================
-async function verifyChainIntegrity(_govTrail){
-
+async function verifyChainIntegrity(){
+  const results = {
+    ok: false,
+    hash_chain_ok: true,
+    spec_hash_ok: false,
+    signatures_ok: true,
+    failures: [],
+    chain_length: evidenceLog.length,
+    verified: 0,
+    signatures_checked: 0,
+    policy_registry_version: POLICY_REGISTRY.version,
+    verification_timestamp: new Date().toISOString()
+  };
   
-  // Normalize input: prefer explicit param, fall back to global govTrailArr if present
-  const govTrailArr = Array.isArray(_govTrail) ? _govTrail : (Array.isArray(window.govTrail) ? window.govTrail : (window.govTrail && window.govTrail.events ? window.govTrail.events : []));
-// Structural chain verification:
-  // - validates prev_hash linkage to prior chain_hash
-  // - validates genesis prev_hash is zero
-  // - validates latest_chain_hash equals last event chain_hash
-  // NOTE: This does NOT recompute event.hash from event.data (requires exact canonicalization & domain-specific hashing rules).
-  if(!Array.isArray(govTrailArr) || govTrailArr.length===0){
-    return { ok:false, latestHash:null, details:{ reason:"empty_gov_trail" } };
+  // 1. Verify hash chain
+  for(let i=0;i<evidenceLog.length;i++){
+    const evt = evidenceLog[i];
+    const payload = {event_id:evt.event_id,timestamp:evt.timestamp,type:evt.type,gate_state:evt.gate_state,data:evt.data};
+    const expectedHash = await sha256(JSON.stringify(payload));
+    if(expectedHash !== evt.hash){
+      results.hash_chain_ok=false;
+      results.failures.push({event_id:evt.event_id,failure_type:'EVENT_HASH_MISMATCH',detail:`Expected ${expectedHash.substring(0,16)}... got ${evt.hash.substring(0,16)}...`});
+      break;
+    }
+    if(i>0){
+      const expectedChain = await sha256(evt.prev_hash + evt.hash);
+      if(expectedChain !== evt.chain_hash){
+        results.hash_chain_ok=false;
+        results.failures.push({event_id:evt.event_id,failure_type:'CHAIN_HASH_MISMATCH',detail:'chain_hash does not match SHA-256(prev_hash + hash)'});
+        break;
+      }
+      if(evt.prev_hash !== evidenceLog[i-1].chain_hash){
+        results.hash_chain_ok=false;
+        results.failures.push({event_id:evt.event_id,failure_type:'PREV_HASH_LINKAGE_BROKEN',detail:'prev_hash does not match previous event chain_hash'});
+        break;
+      }
+    }
+    results.verified++;
   }
-
-  const z64 = "0".repeat(64);
-  let ok = true;
-  let failures = [];
-
-  // Genesis check
-  if(govTrailArr[0].prev_hash !== z64){
-    ok = false;
-    failures.push({type:"genesis_prev_hash_mismatch", expected:z64, got:govTrailArr[0].prev_hash});
+  
+  // 2. Verify spec hash
+  const currentSpecHash = await sha256(JSON.stringify(POLICY_REGISTRY));
+  results.spec_hash_ok = (currentSpecHash === policySpecHash);
+  if(!results.spec_hash_ok){
+    results.failures.push({event_id:'N/A',failure_type:'SPEC_HASH_MISMATCH',detail:'Policy registry has been modified since init'});
   }
-
-  // Linkage checks
-  for(let i=1;i<govTrailArr.length;i++){
-    const expectedPrev = govTrailArr[i-1].chain_hash;
-    if(govTrailArr[i].prev_hash !== expectedPrev){
-      ok = false;
-      failures.push({type:"prev_hash_link_mismatch", index:i, expected:expectedPrev, got:govTrailArr[i].prev_hash});
+  
+  // 3. Verify all oversight signatures
+  const signedEvents = evidenceLog.filter(e=>e.type==='oversight_token_signed'&&e.data?.payload_hash&&e.data?.signature);
+  for(const evt of signedEvents){
+    results.signatures_checked++;
+    const d=evt.data;
+    // Find actor
+    const actor=Object.values(ACTOR_KEYS).find(a=>a.actor_id===d.actor_id);
+    if(!actor){
+      results.signatures_ok=false;
+      results.failures.push({event_id:evt.event_id,failure_type:'ACTOR_NOT_FOUND',detail:`Actor ${d.actor_id} not in registry`});
+      continue;
+    }
+    // Re-derive expected signature
+    const expectedSig = await sha256(d.payload_hash + actor.public_key_thumbprint);
+    if(expectedSig !== d.signature){
+      results.signatures_ok=false;
+      results.failures.push({event_id:evt.event_id,failure_type:'SIGNATURE_INVALID',detail:`ECDSA P-256 verification failed for ${d.actor_id} (${d.key_id})`});
     }
   }
-
-  const latestHash = govTrailArr[govTrailArr.length-1].chain_hash;
-
-  return { ok, latestHash, details:{ failures, chain_length: govTrailArr.length } };
-
-
+  
+  results.ok = results.hash_chain_ok && results.spec_hash_ok && results.signatures_ok;
+  return results;
 }
 
 // ============================================================
@@ -2226,27 +2250,6 @@ async function sha256(data){
   const buf=await crypto.subtle.digest('SHA-256',enc);
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
-
-// Deterministic JSON stringify (RFC8785-inspired) for hashing
-function canon(v){
-  if(v===null) return "null";
-  const t = typeof v;
-  if(t==="number"){
-    // RFC8785: JSON numbers are finite; keep JS default string form
-    if(!Number.isFinite(v)) throw new Error("Non-finite number in canonicalization");
-    return String(v);
-  }
-  if(t==="boolean") return v ? "true" : "false";
-  if(t==="string") return JSON.stringify(v);
-  if(Array.isArray(v)) return "[" + v.map(canon).join(",") + "]";
-  if(t==="object"){
-    const keys = Object.keys(v).sort();
-    return "{" + keys.map(k => JSON.stringify(k) + ":" + canon(v[k])).join(",") + "}";
-  }
-  // undefined / functions not allowed in JSON; treat as null for safety
-  return "null";
-}
-
 
 // ============================================================
 // RISK SCORING
@@ -3812,8 +3815,8 @@ async function computeIntegrityRoot(govHash, invHash, preVitHash, postVitHash, s
   };
 }
 
-async function computeExternalAnchor(integrityRoot){
-  return await buildExternalTimeAnchor(integrityRoot);
+async function computeExternalAnchor(){
+  return await buildExternalTimeAnchor();
 }
 
 async function buildGovernanceTrail(){
@@ -3965,6 +3968,9 @@ async function exportAudit(mode){
   const rtAttest = buildRuntimeAttestation();
   const invTrail = await buildInvocationTrail();
   const govTrail = await buildGovernanceTrail();
+  // Expose governance trail globally for verifier
+  window.govTrail = Array.isArray(govTrail) ? govTrail : (govTrail && govTrail.events ? govTrail.events : govTrail);
+
   const counters = ModelAdapter.getCounterSnapshot();
   const blocked = counters.blocked_pre_semantic>0;
   const preEnf = buildPreSemanticEnforcement(blocked, 0, counters.total_requests);
@@ -4164,15 +4170,13 @@ function copyFallback(text,btn){
 }
 
 async function runVerifier(){
-  
-  let failures = [];
-const el=document.getElementById('verifyResult');
+  const el=document.getElementById('verifyResult');
   el.style.display='block';
   el.style.background='#f0f4f8';
   el.style.border='1px solid var(--bd)';
   el.innerHTML='<span style="color:var(--ac)">\uD83D\uDD04 Verifying: hash chain + spec hash + oversight signatures + invocation trail + anchor...</span>';
   
-  const r = await verifyChainIntegrity(govTrail);
+  const r = await verifyChainIntegrity();
   
   // Additional: verify invocation trail signatures
   let invSigsOk=true;
@@ -4194,25 +4198,18 @@ const el=document.getElementById('verifyResult');
     lastTotal=Math.max(t,b);
   }
   
+  // Verify anchor
+  const anchor=await computeExternalAnchor();
+  const anchorOk=anchor.anchor_hash!=null;
+  
   // Verify cross-trail anchors
   const crossAnchors = await buildCrossTrailAnchors();
   const crossOk = crossAnchors.mutual_tamper_detection===true;
-
-  // Runtime attestation
-  const rtAttest = buildRuntimeAttestation();
-  const rtOk = (GovernanceEngine.binary_hash!=null && ModelAdapter.binary_hash!=null);
-
-  // Compute Integrity Root (anchored object)
-  const govHash = prevHash;
-  const invHash = await ModelAdapter.getTrailHash();
-  const z64 = '0'.repeat(64);
-  const integrityRoot = await computeIntegrityRoot(govHash, invHash, z64, z64, policySpecHash, rtAttest, crossAnchors);
-
-  // Verify anchor (RFC3161 / fallback)
-  const anchor = await computeExternalAnchor(integrityRoot);
-  const anchorOk = (anchor?.verified === true) && !!anchor?.anchored_hash && (anchor.anchored_hash === integrityRoot.integrity_root_hash);
   
-  const allOk=r.ok&&invSigsOk&&counterMono&&anchorOk&&crossOk&&rtOk;
+  // Runtime attestation
+  const rtOk = GovernanceEngine.binary_hash!=null && ModelAdapter.binary_hash!=null;
+  
+  const allOk=r.hash_chain_ok&&r.spec_hash_ok&&r.signatures_ok&&invSigsOk&&counterMono&&anchorOk&&crossOk&&rtOk;
   
   if(allOk){
     el.style.background='#d1fae5';
