@@ -23,6 +23,9 @@ app = Flask(__name__, static_folder='static')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('aegisframe')
 
+# License gate — must validate before anything else runs
+from license_gate import validate_license, LicenseGateError
+
 # Import PSCP proof engine
 from api.pscp_proof import pscp_engine
 # Import chain verifier
@@ -392,5 +395,15 @@ if __name__ == '__main__':
     logger.info(f'  TSA: freetsa.org (RFC 3161 LIVE)')
     logger.info(f'  PSCP: GPU + eBPF + Process Attestation')
     logger.info(f'  Patents: SIREN · PSCP · MilkMind · AegisFrame')
+    logger.info(f'═══════════════════════════════════════════════')
+
+    # License gate — halt if invalid
+    try:
+        lic = validate_license()
+        logger.info(f'  License: VALID · {lic.get("customer")} · tier={lic.get("tier")}')
+    except LicenseGateError as e:
+        logger.critical(f'  LICENSE GATE BLOCKED: {e}')
+        raise SystemExit(1)
+
     logger.info(f'═══════════════════════════════════════════════')
     app.run(host='0.0.0.0', port=port, debug=False)

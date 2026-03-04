@@ -9,6 +9,8 @@ dist/
 build/
 .DS_Store
 Thumbs.db
+.aegis_license_cache
+aegis_license.key
 *.tar.gz
 *.zip
 node_modules/
