@@ -304,6 +304,52 @@ body{background:var(--bg);color:var(--tx);font-family:'IBM Plex Sans',sans-serif
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 [data-explain]{cursor:help;position:relative}
 [data-explain]:hover{outline:1.5px dashed rgba(18,180,122,.3);outline-offset:2px;border-radius:4px}
+
+/* ── LICENSE BAR ───────────────────────────────────────────── */
+.lic-bar{display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:10px;padding:8px 24px;background:#fff;
+  border-bottom:1px solid var(--bd);font-size:12px}
+.lic-bar-l{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.lic-bar-l label{font-size:10px;font-weight:700;color:var(--tx3);
+  text-transform:uppercase;letter-spacing:.8px;white-space:nowrap}
+.lic-input{font-family:'IBM Plex Mono',monospace;font-size:11px;
+  background:var(--bg3);border:1px solid var(--bd);border-radius:6px;
+  padding:5px 10px;color:var(--tx);outline:none;width:220px;
+  letter-spacing:.08em;transition:border-color .15s}
+.lic-input:focus{border-color:var(--ac)}
+.lic-input.err{border-color:var(--rd);background:#fff5f5}
+.lic-btn{padding:5px 14px;font-size:11px;font-weight:700;color:#fff;
+  background:var(--ac3);border:none;border-radius:6px;cursor:pointer;
+  transition:background .15s;white-space:nowrap}
+.lic-btn:hover{background:var(--ac)}
+.lic-bar-r{display:flex;align-items:center;gap:8px}
+.lic-badge{font-size:9px;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;padding:3px 9px;border-radius:20px}
+.lic-badge.ok{background:#d1fae5;color:#065f46;border:1px solid #6ee7b7}
+.lic-badge.no{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
+.lic-badge.hidden{display:none}
+.lic-detail{font-size:10px;color:var(--tx3);font-family:'IBM Plex Mono',monospace}
+/* license status dot in header */
+.lic-status{display:flex;align-items:center;gap:5px;font-size:10px;
+  font-weight:600;font-family:'IBM Plex Mono',monospace;letter-spacing:.04em}
+.lic-status.checking{color:var(--tx3)}
+.lic-status.valid{color:var(--gn)}
+.lic-status.invalid{color:var(--rd)}
+.lic-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.lic-status.checking .lic-dot{background:var(--tx3);animation:lp 1.4s infinite}
+.lic-status.valid .lic-dot{background:var(--gn);box-shadow:0 0 0 3px rgba(5,150,105,.2)}
+.lic-status.invalid .lic-dot{background:var(--rd)}
+/* gate overlay */
+.gate-wrap{position:relative}
+.gate-overlay{position:absolute;inset:0;background:rgba(240,242,247,.85);
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  border-radius:inherit;z-index:20;display:none;
+  align-items:center;justify-content:center;flex-direction:column;gap:8px;
+  text-align:center;padding:24px}
+.gate-overlay.show{display:flex}
+.gate-icon{font-size:2rem;line-height:1}
+.gate-title{font-size:13px;font-weight:700;color:var(--tx)}
+.gate-msg{font-size:11px;color:var(--tx2);max-width:280px;line-height:1.6}
 </style>
 </head>
 <body>
@@ -316,6 +362,11 @@ body{background:var(--bg);color:var(--tx);font-family:'IBM Plex Sans',sans-serif
     <div class="htitle"><em>AegisFrame</em> · AI Control Tower</div>
   </div>
   <div class="hdr-r">
+    <!-- License Status -->
+    <div id="licStatus" class="lic-status checking">
+      <span class="lic-dot"></span><span id="licStatusText">Checking…</span>
+    </div>
+    <div class="hdiv"></div>
     <div class="jur-sel" id="jurSel" data-explain="jurisdiction"></div>
     <div class="hdiv"></div>
     <div style="padding:3px 8px;border-radius:4px;background:#0a0e1a;color:#12b47a;font-size:8px;font-weight:700;letter-spacing:1px;font-family:'IBM Plex Mono',monospace">⚡ PATENT PENDING · USPTO</div>
@@ -370,6 +421,20 @@ body{background:var(--bg);color:var(--tx);font-family:'IBM Plex Sans',sans-serif
       <span id="postEventPct" style="font-size:10px;font-weight:700;color:#16a34a;font-family:'IBM Plex Mono',monospace">0%</span>
       <button onclick="dismissPostEvent()" style="background:none;border:none;color:#86efac;cursor:pointer;font-size:14px;padding:0 4px">✕</button>
     </div>
+  </div>
+</div>
+
+<!-- LICENSE BAR -->
+<div class="lic-bar">
+  <div class="lic-bar-l">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    <label for="licKeyInput">License Key</label>
+    <input type="password" id="licKeyInput" class="lic-input" placeholder="XL3-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false"/>
+    <button type="button" class="lic-btn" id="licActivateBtn">Activate</button>
+  </div>
+  <div class="lic-bar-r">
+    <span id="licBadge" class="lic-badge hidden"></span>
+    <span id="licDetail" class="lic-detail"></span>
   </div>
 </div>
 
@@ -4274,6 +4339,130 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&e.ctrlKey){handleSend()}
   if(e.key==='Escape'){closeExport()}
 });
+
+// ============================================================
+// LICENSE SYSTEM
+// ============================================================
+const LS_LIC_KEY   = 'aegistower_license_key';
+const LS_LIC_CACHE = 'aegistower_license_cache';
+const LIC_TTL_MS   = 7 * 24 * 60 * 60 * 1000; // 7 days heartbeat
+
+let licState = { valid: false, features: [], label: '', expires: null, pending: true };
+
+function licHasFeature(f){ return licState.valid && licState.features.includes(f); }
+
+function licLoadCache(){
+  try{ const r=localStorage.getItem(LS_LIC_CACHE); return r?JSON.parse(r):null; }catch{ return null; }
+}
+function licSaveCache(data){ try{ localStorage.setItem(LS_LIC_CACHE,JSON.stringify(data)); }catch{} }
+function licClearCache(){ localStorage.removeItem(LS_LIC_CACHE); }
+
+function licUpdateUI(){
+  const statusEl=document.getElementById('licStatus');
+  const statusTxt=document.getElementById('licStatusText');
+  const badge=document.getElementById('licBadge');
+  const detail=document.getElementById('licDetail');
+  const input=document.getElementById('licKeyInput');
+  if(!statusEl) return;
+  if(licState.pending){
+    statusEl.className='lic-status checking';
+    if(statusTxt) statusTxt.textContent='Checking\u2026';
+    return;
+  }
+  if(licState.valid){
+    statusEl.className='lic-status valid';
+    if(statusTxt) statusTxt.textContent='Licensed';
+    if(badge){ badge.className='lic-badge ok'; badge.textContent=licState.label||'Active'; }
+    if(detail){
+      const exp=licState.expires?` \u00b7 Expires ${licState.expires}`:'\u00b7 No expiry';
+      detail.textContent=`${licState.features.length} feature(s) ${exp}`;
+    }
+    if(input) input.classList.remove('err');
+  } else {
+    statusEl.className='lic-status invalid';
+    if(statusTxt) statusTxt.textContent=licState.error||'No license';
+    if(badge){ badge.className='lic-badge no'; badge.textContent='Unlicensed'; }
+    if(detail) detail.textContent=licState.error||'Enter license key to unlock features';
+    if(input && licState.error && licState.error!=='No license key') input.classList.add('err');
+  }
+}
+
+function licApplyGates(){
+  const towerGate=document.getElementById('gate-tower');
+  if(towerGate) towerGate.classList.toggle('show', !licHasFeature('tower'));
+  const tsaGate=document.getElementById('gate-tsa');
+  if(tsaGate) tsaGate.classList.toggle('show', !licHasFeature('tsa'));
+  const entGate=document.getElementById('gate-enterprise');
+  if(entGate) entGate.classList.toggle('show', !licHasFeature('enterprise_tier'));
+}
+
+async function licValidate(key, force=false){
+  if(!key){
+    licState={valid:false,features:[],label:'',expires:null,error:'No license key',pending:false};
+    licApplyGates(); licUpdateUI(); return;
+  }
+  const cached=licLoadCache();
+  if(!force && cached && cached._key===key){
+    const age=Date.now()-new Date(cached.checked_at||0).getTime();
+    if(age < LIC_TTL_MS){
+      licState={...cached,pending:false,error:cached.valid?null:(cached.error||'Invalid')};
+      licApplyGates(); licUpdateUI(); return;
+    }
+  }
+  licState.pending=true; licUpdateUI();
+  try{
+    const r=await fetch('/api/v1/license',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({license_key:key})
+    });
+    const data=await r.json().catch(()=>({}));
+    if(r.ok && data.valid){
+      licState={valid:true,features:data.features||[],label:data.label||'Licensed',
+        expires:data.expires||null,checked_at:data.checked_at,error:null,pending:false};
+      licSaveCache({...licState,_key:key});
+    } else {
+      licState={valid:false,features:[],label:'',expires:null,
+        error:data.error||`Error ${r.status}`,checked_at:new Date().toISOString(),pending:false};
+      licSaveCache({...licState,_key:key});
+    }
+  } catch(e){
+    if(cached && cached._key===key && cached.valid){
+      licState={valid:true,features:cached.features||[],label:(cached.label||'')+ ' (offline)',
+        expires:cached.expires||null,checked_at:cached.checked_at,error:null,pending:false};
+    } else {
+      licState={valid:false,features:[],label:'',expires:null,
+        error:'Network error',pending:false};
+    }
+  }
+  licApplyGates(); licUpdateUI();
+}
+
+function licInit(){
+  const input=document.getElementById('licKeyInput');
+  const btn=document.getElementById('licActivateBtn');
+  if(!input||!btn) return;
+  const saved=localStorage.getItem(LS_LIC_KEY)||'';
+  input.value=saved;
+  input.addEventListener('input',()=>input.classList.remove('err'));
+  btn.addEventListener('click',async()=>{
+    const k=input.value.trim();
+    localStorage.setItem(LS_LIC_KEY,k);
+    licClearCache();
+    await licValidate(k,true);
+  });
+  input.addEventListener('keydown',async e=>{
+    if(e.key==='Enter'){
+      const k=input.value.trim();
+      localStorage.setItem(LS_LIC_KEY,k);
+      licClearCache();
+      await licValidate(k,true);
+    }
+  });
+  licValidate(saved);
+}
+
+licInit();
 
 // ============================================================
 // BOOT
