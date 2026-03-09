@@ -40,36 +40,115 @@ def health():
     })
 
 # ============================================================
-# REAL RFC 3161 TSA ENDPOINT
+# LICENSE VALIDATION ENDPOINT
 # ============================================================
-# Uses openssl ts command to create a proper TimeStampReq,
-# sends it to freetsa.org, and returns the real TSA response.
-#
-# freetsa.org is a free, public RFC 3161 TSA.
-# The timestamp token is cryptographically verifiable.
+# ENV variable: LICENSE_KEYS (JSON string)
+# Example:
+# {
+#   "XL3-XXXX-YYYY-ZZZZ": {
+#     "active": true,
+#     "label": "Acme Corp",
+#     "expires": null,
+#     "features": ["tower", "tsa", "enterprise_tier"]
+#   },
+#   "XL3-DEMO-0000-0000": {
+#     "active": true,
+#     "label": "Demo",
+#     "expires": "2026-12-31",
+#     "features": ["tower"]
+#   }
+# }
+# ============================================================
+
+def load_license_db():
+    raw = os.environ.get('LICENSE_KEYS')
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except Exception:
+        return None
+
+@app.route('/api/v1/license', methods=['POST', 'OPTIONS'])
+def license_check():
+    if request.method == 'OPTIONS':
+        return '', 204
+
+    try:
+        data = request.get_json(silent=True) or {}
+        license_key = data.get('license_key', '').strip()
+
+        if not license_key:
+            return jsonify({'valid': False, 'error': 'license_key is required', 'code': 'MISSING_KEY'}), 400
+
+        db = load_license_db()
+
+        # Dev magic key — works when no LICENSE_KEYS env is set
+        if not db:
+            if license_key == 'XL3-DEV-LOCAL':
+                return jsonify({
+                    'valid': True,
+                    'label': 'Local Dev',
+                    'features': ['tower', 'tsa', 'enterprise_tier'],
+                    'expires': None,
+                    'checked_at': datetime.now(timezone.utc).isoformat()
+                })
+            return jsonify({'valid': False, 'error': 'License service not configured', 'code': 'SERVICE_UNAVAILABLE'}), 503
+
+        entry = db.get(license_key)
+
+        if not entry:
+            logger.warning(f'License not found: {license_key[:8]}...')
+            return jsonify({'valid': False, 'error': 'License key not found', 'code': 'NOT_FOUND'}), 403
+
+        # Kill switch
+        if not entry.get('active', False):
+            logger.warning(f'Deactivated license used: {license_key[:8]}...')
+            return jsonify({'valid': False, 'error': 'License has been deactivated', 'code': 'DEACTIVATED'}), 403
+
+        # Expiry check
+        expires = entry.get('expires')
+        if expires:
+            try:
+                expiry_dt = datetime.fromisoformat(expires).replace(tzinfo=timezone.utc)
+                if datetime.now(timezone.utc) > expiry_dt:
+                    return jsonify({'valid': False, 'error': f'License expired on {expires}', 'code': 'EXPIRED', 'expires': expires}), 403
+            except ValueError:
+                pass
+
+        logger.info(f'License validated: {entry.get("label", "Unknown")} [{license_key[:8]}...]')
+        return jsonify({
+            'valid': True,
+            'label': entry.get('label', 'Licensed'),
+            'features': entry.get('features', []),
+            'expires': expires,
+            'checked_at': datetime.now(timezone.utc).isoformat()
+        })
+
+    except Exception as e:
+        logger.error(f'License endpoint error: {e}')
+        return jsonify({'valid': False, 'error': str(e), 'code': 'SERVER_ERROR'}), 500
+
+
+# ============================================================
+# REAL RFC 3161 TSA ENDPOINT
 # ============================================================
 
 @app.route('/api/v1/tsa/anchor', methods=['POST'])
 def tsa_anchor():
-    """
-    Accepts a JSON body with { hash: <sha256_hex>, timestamp: <iso8601> }
-    Creates a real RFC 3161 timestamp request, sends it to freetsa.org,
-    and returns the signed timestamp token.
-    """
     try:
         data = request.get_json()
         if not data or 'hash' not in data:
             return jsonify({'error': 'Missing hash field'}), 400
-        
+
         hash_hex = data['hash']
         client_ts = data.get('timestamp', datetime.now(timezone.utc).isoformat())
-        
-        # Validate hash format (should be 64 hex chars = SHA-256)
+
         if len(hash_hex) != 64:
             return jsonify({'error': 'Hash must be 64 hex characters (SHA-256)'}), 400
-        
+
         result = call_rfc3161_tsa(hash_hex)
-        
+
         if result['success']:
             logger.info(f"TSA anchor successful: {result['receipt_id']}")
             return jsonify({
@@ -87,7 +166,6 @@ def tsa_anchor():
                 'timestamp': client_ts
             })
         else:
-            # Fallback: if TSA call fails, return honest error + local hash
             logger.warning(f"TSA call failed: {result.get('error')}, using fallback")
             fallback_token = hashlib.sha256(
                 (hash_hex + client_ts + 'AEGISFRAME_FALLBACK').encode()
@@ -105,49 +183,32 @@ def tsa_anchor():
                 'verified': False,
                 'timestamp': client_ts
             })
-    
+
     except Exception as e:
         logger.error(f"TSA endpoint error: {e}")
         return jsonify({'error': str(e)}), 500
 
 
 def call_rfc3161_tsa(hash_hex: str) -> dict:
-    """
-    Makes a real RFC 3161 timestamp request using openssl.
-    
-    Steps:
-    1. Write the hash to a temp file
-    2. Create a TimeStampReq with openssl ts -query
-    3. Send it to freetsa.org/tsr via curl
-    4. Parse the response
-    """
     tmpdir = tempfile.mkdtemp()
     hash_file = os.path.join(tmpdir, 'data.txt')
     tsq_file = os.path.join(tmpdir, 'request.tsq')
     tsr_file = os.path.join(tmpdir, 'response.tsr')
-    
+
     try:
-        # Write hash as data to timestamp
         with open(hash_file, 'w') as f:
             f.write(hash_hex)
-        
-        # Create timestamp request
-        # openssl ts -query -data <file> -no_nonce -sha256 -out request.tsq
+
         proc = subprocess.run([
             'openssl', 'ts', '-query',
             '-data', hash_file,
-            '-no_nonce',
-            '-sha256',
+            '-no_nonce', '-sha256',
             '-out', tsq_file
         ], capture_output=True, timeout=10)
-        
+
         if proc.returncode != 0:
-            return {
-                'success': False,
-                'error': f'openssl ts -query failed: {proc.stderr.decode()}'
-            }
-        
-        # Send to freetsa.org
+            return {'success': False, 'error': f'openssl ts -query failed: {proc.stderr.decode()}'}
+
         proc = subprocess.run([
             'curl', '-s', '-S',
             '-H', 'Content-Type: application/timestamp-query',
@@ -156,47 +217,32 @@ def call_rfc3161_tsa(hash_hex: str) -> dict:
             '-o', tsr_file,
             'https://freetsa.org/tsr'
         ], capture_output=True, timeout=20)
-        
+
         if proc.returncode != 0:
-            return {
-                'success': False,
-                'error': f'curl to freetsa.org failed: {proc.stderr.decode()}'
-            }
-        
-        # Check response exists and has content
+            return {'success': False, 'error': f'curl to freetsa.org failed: {proc.stderr.decode()}'}
+
         if not os.path.exists(tsr_file) or os.path.getsize(tsr_file) == 0:
-            return {
-                'success': False,
-                'error': 'Empty response from TSA'
-            }
-        
+            return {'success': False, 'error': 'Empty response from TSA'}
+
         response_size = os.path.getsize(tsr_file)
-        
-        # Read response as hex
+
         with open(tsr_file, 'rb') as f:
             receipt_bytes = f.read()
         receipt_hex = receipt_bytes.hex()
-        
-        # Hash the TSA receipt as our token
         token_hash = hashlib.sha256(receipt_bytes).hexdigest()
         receipt_id = f'TSA_{int(time.time())}_{token_hash[:8]}'
-        
-        # Try to verify/parse the response
+
         tsa_timestamp = None
         proc = subprocess.run([
-            'openssl', 'ts', '-reply',
-            '-in', tsr_file,
-            '-text'
+            'openssl', 'ts', '-reply', '-in', tsr_file, '-text'
         ], capture_output=True, timeout=10)
-        
+
         if proc.returncode == 0:
-            text_output = proc.stdout.decode()
-            # Extract time from response
-            for line in text_output.split('\n'):
+            for line in proc.stdout.decode().split('\n'):
                 if 'Time stamp:' in line:
                     tsa_timestamp = line.split(':', 1)[1].strip()
                     break
-        
+
         return {
             'success': True,
             'token_hash': token_hash,
@@ -205,26 +251,21 @@ def call_rfc3161_tsa(hash_hex: str) -> dict:
             'response_size': response_size,
             'tsa_timestamp': tsa_timestamp
         }
-    
+
     except subprocess.TimeoutExpired:
         return {'success': False, 'error': 'TSA request timed out'}
     except Exception as e:
         return {'success': False, 'error': str(e)}
     finally:
-        # Cleanup
         for f in [hash_file, tsq_file, tsr_file]:
-            try:
-                os.remove(f)
-            except:
-                pass
-        try:
-            os.rmdir(tmpdir)
-        except:
-            pass
+            try: os.remove(f)
+            except: pass
+        try: os.rmdir(tmpdir)
+        except: pass
 
 
 # ============================================================
-# API: System Status (for monitoring integrations)
+# API: System Status
 # ============================================================
 @app.route('/api/v1/status')
 def api_status():
