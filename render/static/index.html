@@ -308,7 +308,7 @@ body{background:var(--bg);color:var(--tx);font-family:'IBM Plex Sans',sans-serif
 /* ── LICENSE BAR ───────────────────────────────────────────── */
 .lic-bar{display:flex;align-items:center;justify-content:space-between;
   flex-wrap:wrap;gap:10px;padding:8px 24px;background:#fff;
-  border-bottom:1px solid var(--bd);font-size:12px}
+  border-bottom:1px solid var(--bd);font-size:12px;position:relative;z-index:100}
 .lic-bar-l{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
 .lic-bar-l label{font-size:10px;font-weight:700;color:var(--tx3);
   text-transform:uppercase;letter-spacing:.8px;white-space:nowrap}
@@ -351,7 +351,7 @@ body{background:var(--bg);color:var(--tx);font-family:'IBM Plex Sans',sans-serif
 .gate-title{font-size:13px;font-weight:700;color:var(--tx)}
 .gate-msg{font-size:11px;color:var(--tx2);max-width:280px;line-height:1.6}
 /* FULL APP GATE */
-.app-gate{position:fixed;inset:0;top:60px;background:rgba(240,242,247,.97);
+.app-gate{position:fixed;inset:0;top:100px;background:rgba(240,242,247,.97);
   backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
   z-index:99;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px}
 .app-gate.hidden{display:none}
