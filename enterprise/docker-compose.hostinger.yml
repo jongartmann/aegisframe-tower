@@ -1,0 +1,50 @@
+# ============================================================
+# AegisFrame PSCP – Hostinger VPS / Traefik Deployment
+# X-Loop³ Labs · Kreuzlingen, Switzerland
+#
+# Domain: ui.x-loop3.com → aegisframe service on port 10000
+# Expects Traefik running on the same Docker network "web"
+#
+# Run: docker compose -f docker-compose.hostinger.yml up --build -d
+# ============================================================
+
+services:
+  aegisframe:
+    build: .
+    runtime: nvidia
+    privileged: true
+    expose:
+      - "10000"
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - AEGISFRAME_MODE=HARDWARE_PROOF
+      - AEGISFRAME_VERSION=v0.6.0-enterprise
+    volumes:
+      - /sys/kernel/debug:/sys/kernel/debug:ro
+      - /proc:/host/proc:ro
+      - /sys/fs/cgroup:/host/cgroup:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.aegisframe.rule=Host(`ui.x-loop3.com`)"
+      - "traefik.http.routers.aegisframe.entrypoints=websecure"
+      - "traefik.http.routers.aegisframe.tls.certresolver=letsencrypt"
+      - "traefik.http.services.aegisframe.loadbalancer.server.port=10000"
+    networks:
+      - web
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:10000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  web:
+    external: true
