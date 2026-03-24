@@ -406,10 +406,10 @@ body{background:var(--bg);color:var(--tx);font-family:'IBM Plex Sans',sans-serif
       <textarea class="prompt-input" id="promptInput" placeholder="Enter any prompt. AegisFrame scans it pre-semantically, scores risk, applies gate controls, then forwards to the AI model. Every step is logged, hashed, and audit-ready."></textarea>
       <div class="prompt-actions">
         <button class="btn btn-primary" id="sendBtn" onclick="handleSend()">⚡ Send through AegisFrame</button>
-        <button class="btn btn-secondary" onclick="loadExample('safe')">💚 Harmlos</button>
-        <button class="btn btn-secondary" onclick="loadExample('mild')">💛 Grauzone</button>
-        <button class="btn btn-secondary" onclick="loadExample('suspicious')">🧡 Kritisch</button>
-        <button class="btn btn-secondary" onclick="loadExample('attack')">💔 Verboten</button>
+        <button class="btn btn-secondary" onclick="loadExample('safe')">💚 Benign</button>
+        <button class="btn btn-secondary" onclick="loadExample('mild')">💛 Grey Zone</button>
+        <button class="btn btn-secondary" onclick="loadExample('suspicious')">🧡 Critical</button>
+        <button class="btn btn-secondary" onclick="loadExample('attack')">💔 Forbidden</button>
         <div style="flex:1"></div>
         <button class="btn btn-export" onclick="exportAudit()">📦 Export Full</button>
         <button class="btn btn-export" onclick="exportAudit('AUDITOR_MINIMAL')" style="color:var(--ac3);border-color:rgba(8,145,178,.3)">🔍 Auditor Export</button>
